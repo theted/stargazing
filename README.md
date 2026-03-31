@@ -38,6 +38,12 @@ Build for production:
 npm run build
 ```
 
+Build with the GitHub Pages base path logic applied:
+
+```bash
+GITHUB_ACTIONS=true GITHUB_REPOSITORY="<owner>/<repo>" npm run build
+```
+
 Preview the production build:
 
 ```bash
@@ -50,9 +56,30 @@ Run the test suite:
 npm test
 ```
 
+## GitHub Pages
+
+The repo is now prepared for GitHub Pages with:
+
+- dynamic Vite `base` handling in [`vite.config.js`](/home/fredrik/Documents/playground/stargazing/vite.config.js)
+- a deploy workflow in [`.github/workflows/deploy.yml`](/home/fredrik/Documents/playground/stargazing/.github/workflows/deploy.yml)
+
+The Vite base is resolved automatically:
+
+- `https://<user>.github.io/` or a custom domain builds with `/`
+- `https://<user>.github.io/<repo>/` builds with `/<repo>/`
+
+To enable deployment on GitHub:
+
+1. Push the repository to GitHub.
+2. In `Settings -> Pages`, set `Source` to `GitHub Actions`.
+3. Push to `master` or `main`, or run the workflow manually from the `Actions` tab.
+
+The workflow installs dependencies, runs `npm test -- --run`, builds the site, uploads `dist`, and deploys it with the official GitHub Pages actions.
+
 ## Project Structure
 
 - [`index.html`](/home/fredrik/Documents/playground/stargazing/index.html) is the Vite entry page and mounts the fullscreen canvas.
+- [`vite.config.js`](/home/fredrik/Documents/playground/stargazing/vite.config.js) configures the deployment base path, including GitHub Pages support.
 - [`src/main.js`](/home/fredrik/Documents/playground/stargazing/src/main.js) boots the sky effect and exposes `window.skyDemo`.
 - [`src/styles.css`](/home/fredrik/Documents/playground/stargazing/src/styles.css) defines the page background, layout, and canvas sizing.
 - [`src/sky/config.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config.js) contains the main tuning constants.
@@ -69,6 +96,7 @@ npm test
 - [`src/sky/renderer.js`](/home/fredrik/Documents/playground/stargazing/src/sky/renderer.js) draws trails, glows, and star cores for each frame.
 - [`src/sky/math.js`](/home/fredrik/Documents/playground/stargazing/src/sky/math.js) provides the shared math helpers.
 - [`src/ui/createControls.js`](/home/fredrik/Documents/playground/stargazing/src/ui/createControls.js) mounts the live control panel.
+- [`src/ui/display-state.js`](/home/fredrik/Documents/playground/stargazing/src/ui/display-state.js) persists benchmark-box display mode and size state.
 - [`src/ui/createFpsCounter.js`](/home/fredrik/Documents/playground/stargazing/src/ui/createFpsCounter.js) shows the smoothed frame rate and live star count.
 - [`tests/sky.test.js`](/home/fredrik/Documents/playground/stargazing/tests/sky.test.js) verifies the core geometry and projection behavior.
 
