@@ -1,5 +1,6 @@
 import { SKY_CONFIG } from "./sky/config.js";
 import { readSkyConfigFromStorage } from "./sky/config-storage.js";
+import { applyCameraPreset } from "./sky/presets.js";
 import { createSky } from "./sky/createSky.js";
 import { createControls } from "./ui/createControls.js";
 import { createFpsCounter } from "./ui/createFpsCounter.js";
@@ -17,13 +18,13 @@ if (savedConfig && typeof savedConfig === "object") {
   Object.assign(SKY_CONFIG, savedConfig);
 }
 
+if (SKY_CONFIG.cameraPreset && SKY_CONFIG.cameraPreset !== "custom") {
+  applyCameraPreset(SKY_CONFIG, SKY_CONFIG.cameraPreset);
+}
+
 const sky = createSky(canvas, SKY_CONFIG);
 
 window.skyDemo = sky;
-
-if (sky.config.cameraPreset && sky.config.cameraPreset !== "custom") {
-  sky.applyConfig();
-}
 
 if (content instanceof HTMLElement) {
   content.insertAdjacentElement("afterend", createControls(sky));

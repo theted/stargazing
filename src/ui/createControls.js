@@ -141,6 +141,14 @@ const syncCameraInputs = (controls, config) => {
   });
 };
 
+const syncSelectValue = (controls, key, value) => {
+  const control = controls.get(key);
+
+  if (control) {
+    control.select.value = value;
+  }
+};
+
 const syncStarBounds = (controls, config, changedKey, nextValue) => {
   const minControl = controls.get("minStars");
   const maxControl = controls.get("maxStars");
@@ -201,6 +209,7 @@ export const createControls = (sky) => {
       if (nextValue !== "custom") {
         applyCameraPreset(sky.config, nextValue);
         syncCameraInputs(controls, sky.config);
+        syncSelectValue(controls, "cameraPreset", nextValue);
       }
 
       applyAndPersist();
@@ -212,7 +221,7 @@ export const createControls = (sky) => {
       key: "density",
       label: "Density",
       min: 0.00005,
-      max: 0.0015,
+      max: 0.002,
       step: 0.00001,
       format: (value) => `${value.toFixed(5)} / px`,
     },
@@ -311,6 +320,30 @@ export const createControls = (sky) => {
       format: (value) => value.toFixed(2),
     },
     {
+      key: "screenCoverageBoost",
+      label: "Coverage boost",
+      min: 0,
+      max: 1.5,
+      step: 0.01,
+      format: (value) => value.toFixed(2),
+    },
+    {
+      key: "edgeMagnification",
+      label: "Edge magnification",
+      min: 0,
+      max: 1.5,
+      step: 0.01,
+      format: (value) => value.toFixed(2),
+    },
+    {
+      key: "horizonMagnification",
+      label: "Horizon magnification",
+      min: 0,
+      max: 2,
+      step: 0.01,
+      format: (value) => value.toFixed(2),
+    },
+    {
       key: "starSpread",
       label: "Star spread",
       min: 0,
@@ -393,11 +426,8 @@ export const createControls = (sky) => {
           key === "lookAltitude" ||
           key === "lookRoll"
         ) {
-          const presetControl = controls.get("cameraPreset");
-          if (presetControl) {
-            presetControl.select.value = "custom";
-            sky.config.cameraPreset = "custom";
-          }
+          sky.config.cameraPreset = "custom";
+          syncSelectValue(controls, "cameraPreset", "custom");
         }
 
         applyAndPersist();
