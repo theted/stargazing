@@ -4,6 +4,11 @@ import { applyCameraPreset } from "./sky/presets.js";
 import { createSky } from "./sky/createSky.js";
 import { createControls } from "./ui/createControls.js";
 import { createFpsCounter } from "./ui/createFpsCounter.js";
+import {
+  readDisplayStateFromStorage,
+  normalizeDisplayState,
+  writeDisplayStateToStorage,
+} from "./ui/display-state.js";
 
 const canvas = document.querySelector(".sky");
 const content = document.querySelector(".content");
@@ -22,18 +27,44 @@ if (SKY_CONFIG.cameraPreset && SKY_CONFIG.cameraPreset !== "custom") {
   applyCameraPreset(SKY_CONFIG, SKY_CONFIG.cameraPreset);
 }
 
+const displayState = readDisplayStateFromStorage();
+
+const applyDisplayState = (state) => {
+  const nextState = normalizeDisplayState(state);
+  document.body.dataset.stageMode = nextState.mode;
+  document.body.style.setProperty("--boxed-stage-size", `${nextState.boxedSize}px`);
+  return nextState;
+};
+
+let runtimeDisplayState = applyDisplayState(displayState);
+
 const sky = createSky(canvas, SKY_CONFIG);
 
 const setDisplayMode = (mode) => {
-  const nextMode = mode === "boxed" ? "boxed" : "fullscreen";
-  document.body.dataset.stageMode = nextMode;
+  runtimeDisplayState = applyDisplayState({
+    ...runtimeDisplayState,
+    mode,
+  });
+  writeDisplayStateToStorage(runtimeDisplayState);
   sky.resize();
 };
 
-sky.getDisplayMode = () => document.body.dataset.stageMode || "fullscreen";
-sky.setDisplayMode = setDisplayMode;
+const setBoxedStageSize = (boxedSize) => {
+  runtimeDisplayState = applyDisplayState({
+    ...runtimeDisplayState,
+    boxedSize,
+  });
+  writeDisplayStateToStorage(runtimeDisplayState);
 
-setDisplayMode("fullscreen");
+  if (runtimeDisplayState.mode === "boxed") {
+    sky.resize();
+  }
+};
+
+sky.getDisplayMode = () => runtimeDisplayState.mode;
+sky.getBoxedStageSize = () => runtimeDisplayState.boxedSize;
+sky.setDisplayMode = setDisplayMode;
+sky.setBoxedStageSize = setBoxedStageSize;
 
 window.skyDemo = sky;
 

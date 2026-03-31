@@ -3,6 +3,13 @@ import { clearSkyConfigStorage, writeSkyConfigToStorage } from "../sky/config-st
 import { applyCameraPreset, CAMERA_PRESET_KEYS } from "../sky/presets.js";
 import { applySeededRandomization, createRandomSeed } from "../sky/randomize.js";
 import { applyScenePreset, SCENE_PRESET_KEYS, SCENE_PRESETS } from "../sky/scene-presets.js";
+import {
+  BOXED_STAGE_SIZE_DEFAULT,
+  BOXED_STAGE_SIZE_MAX,
+  BOXED_STAGE_SIZE_MIN,
+  BOXED_STAGE_SIZE_STEP,
+  clearDisplayStateStorage,
+} from "./display-state.js";
 
 const STORAGE_NOTICE = "Settings save automatically in localStorage.";
 
@@ -190,6 +197,18 @@ const syncToggleControl = (controls, key, value) => {
   control.input.checked = value;
 };
 
+const syncControlDisabled = (controls, key, disabled) => {
+  const control = controls.get(key);
+  const element = control?.input ?? control?.select;
+
+  if (!control?.row || !element) {
+    return;
+  }
+
+  element.disabled = disabled;
+  control.row.classList.toggle("control-row--disabled", disabled);
+};
+
 const syncAllSliderControls = (controls, sliders, config) => {
   sliders.forEach((slider) => {
     syncSliderControl(controls, slider.key, config[slider.key]);
@@ -321,13 +340,29 @@ export const createControls = (sky) => {
   const stageModeControl = createSelectRow({
     config: { stageMode: sky.getDisplayMode?.() ?? "fullscreen" },
     key: "stageMode",
-    label: "Stage size",
+    label: "Stage mode",
     options: [
       { value: "fullscreen", label: "Fullscreen" },
-      { value: "boxed", label: "300 x 300 centered" },
+      { value: "boxed", label: "Resizable benchmark box" },
     ],
     onChange: (_, nextValue) => {
       sky.setDisplayMode?.(nextValue);
+      syncControlDisabled(controls, "boxedStageSize", nextValue !== "boxed");
+    },
+  });
+
+  const boxedStageSizeControl = createSliderRow({
+    config: {
+      boxedStageSize: sky.getBoxedStageSize?.() ?? BOXED_STAGE_SIZE_DEFAULT,
+    },
+    key: "boxedStageSize",
+    label: "Box size",
+    min: BOXED_STAGE_SIZE_MIN,
+    max: BOXED_STAGE_SIZE_MAX,
+    step: BOXED_STAGE_SIZE_STEP,
+    format: (value) => `${Math.round(value)} px`,
+    onChange: (_, nextValue) => {
+      sky.setBoxedStageSize?.(nextValue);
     },
   });
 
@@ -609,7 +644,11 @@ export const createControls = (sky) => {
   form.insertBefore(presetControl.row, form.children[1] ?? null);
   controls.set("stageMode", stageModeControl);
   form.insertBefore(stageModeControl.row, form.children[2] ?? null);
-  form.insertBefore(seedControl.row, form.children[3] ?? null);
+  controls.set("boxedStageSize", boxedStageSizeControl);
+  form.insertBefore(boxedStageSizeControl.row, form.children[3] ?? null);
+  form.insertBefore(seedControl.row, form.children[4] ?? null);
+
+  syncControlDisabled(controls, "boxedStageSize", sky.getDisplayMode?.() !== "boxed");
 
   toggleRows.forEach((toggleRow) => {
     controls.set(toggleRow.input.dataset.key, toggleRow);
@@ -641,6 +680,7 @@ export const createControls = (sky) => {
   resetButton.textContent = "Reset saved settings";
   resetButton.addEventListener("click", () => {
     clearSkyConfigStorage();
+    clearDisplayStateStorage();
     window.location.reload();
   });
 

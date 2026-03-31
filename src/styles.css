@@ -4,6 +4,7 @@
   color-scheme: dark;
   --text: rgba(238, 244, 255, 0.95);
   --muted: rgba(208, 219, 243, 0.72);
+  --boxed-stage-size: 300px;
 }
 
 * {
@@ -41,8 +42,8 @@ body[data-stage-mode="boxed"] .sky {
   inset: auto;
   top: 50%;
   left: 50%;
-  width: 300px;
-  height: 300px;
+  width: min(var(--boxed-stage-size), calc(100vw - 2rem), calc(100vh - 2rem));
+  height: min(var(--boxed-stage-size), calc(100vw - 2rem), calc(100vh - 2rem));
   transform: translate(-50%, -50%);
   border: 1px solid rgba(205, 220, 255, 0.18);
   border-radius: 1.2rem;
@@ -155,6 +156,10 @@ h1 {
 .control-row--toggle {
   grid-template-columns: 1fr auto;
   align-items: center;
+}
+
+.control-row--disabled {
+  opacity: 0.52;
 }
 
 .control-label {
