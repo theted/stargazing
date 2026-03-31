@@ -154,6 +154,7 @@ h1 {
   accent-color: #8bb4ff;
 }
 
+.control-row input[type="text"],
 .control-row select,
 .control-button {
   width: 100%;
@@ -165,6 +166,7 @@ h1 {
   font: inherit;
 }
 
+.control-row input[type="text"],
 .control-row select {
   min-height: 2.75rem;
 }
@@ -184,6 +186,7 @@ h1 {
 }
 
 .controls-toggle:focus-visible,
+.control-row input[type="text"]:focus-visible,
 .control-row select:focus-visible,
 .control-button:focus-visible {
   outline: 2px solid rgba(139, 180, 255, 0.9);

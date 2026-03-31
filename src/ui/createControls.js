@@ -1,6 +1,8 @@
 import { copySkyConfigSourceToClipboard } from "../sky/config-source.js";
 import { clearSkyConfigStorage, writeSkyConfigToStorage } from "../sky/config-storage.js";
 import { applyCameraPreset, CAMERA_PRESET_KEYS } from "../sky/presets.js";
+import { applySeededRandomization, createRandomSeed } from "../sky/randomize.js";
+import { applyScenePreset, SCENE_PRESET_KEYS, SCENE_PRESETS } from "../sky/scene-presets.js";
 
 const STORAGE_NOTICE = "Settings save automatically in localStorage.";
 
@@ -17,25 +19,6 @@ const formatValue = (value, format) => {
   }
 
   return String(value);
-};
-
-const getStepPrecision = (step) => {
-  const text = String(step);
-  return text.includes(".") ? text.split(".")[1].length : 0;
-};
-
-const quantizeToStep = (value, min, step) => {
-  const precision = getStepPrecision(step);
-  const quantized = min + Math.round((value - min) / step) * step;
-  return Number(quantized.toFixed(precision));
-};
-
-const randomizeSliderValue = (slider) => {
-  const rangeMin = slider.randomMin ?? slider.min;
-  const rangeMax = slider.randomMax ?? slider.max;
-  const biasedUnit = (Math.random() + Math.random()) * 0.5;
-  const raw = rangeMin + (rangeMax - rangeMin) * biasedUnit;
-  return quantizeToStep(raw, slider.min, slider.step);
 };
 
 const scheduleApply = (applyConfig, persistConfig) => {
@@ -134,6 +117,24 @@ const createSelectRow = ({ config, key, label, options, onChange }) => {
   return { row, select };
 };
 
+const createTextRow = ({ label, value = "", placeholder = "", onChange }) => {
+  const { row, label: heading } = createRow("control-row", label);
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value;
+  input.placeholder = placeholder;
+  input.autocomplete = "off";
+  input.spellcheck = false;
+
+  input.addEventListener("input", () => {
+    onChange(input.value);
+  });
+
+  row.append(heading, input);
+  return { row, input };
+};
+
 const createButtonRow = (buttons) => {
   const row = document.createElement("div");
   row.className = "control-actions";
@@ -187,6 +188,18 @@ const syncToggleControl = (controls, key, value) => {
   }
 
   control.input.checked = value;
+};
+
+const syncAllSliderControls = (controls, sliders, config) => {
+  sliders.forEach((slider) => {
+    syncSliderControl(controls, slider.key, config[slider.key]);
+  });
+};
+
+const syncAllToggleControls = (controls, toggleKeys, config) => {
+  toggleKeys.forEach((key) => {
+    syncToggleControl(controls, key, config[key]);
+  });
 };
 
 const syncStarBounds = (controls, config, changedKey, nextValue) => {
@@ -268,6 +281,8 @@ export const createControls = (sky) => {
       })),
     ],
     onChange: (_, nextValue) => {
+      syncSelectValue(controls, "scenePreset", "custom");
+
       if (nextValue !== "custom") {
         applyCameraPreset(sky.config, nextValue);
         syncCameraInputs(controls, sky.config);
@@ -276,6 +291,37 @@ export const createControls = (sky) => {
 
       applyAndPersist();
     },
+  });
+
+  const scenePresetControl = createSelectRow({
+    config: { scenePreset: "custom" },
+    key: "scenePreset",
+    label: "Scene preset",
+    options: [
+      { value: "custom", label: "Custom" },
+      ...SCENE_PRESET_KEYS.map((key) => ({
+        value: key,
+        label: SCENE_PRESETS[key].label,
+      })),
+    ],
+    onChange: (_, nextValue) => {
+      if (nextValue === "custom") {
+        return;
+      }
+
+      applyScenePreset(sky.config, nextValue);
+      syncSelectValue(controls, "cameraPreset", sky.config.cameraPreset);
+      syncCameraInputs(controls, sky.config);
+      syncAllSliderControls(controls, sliders, sky.config);
+      syncAllToggleControls(controls, toggleKeys, sky.config);
+      applyAndPersist();
+    },
+  });
+
+  const seedControl = createTextRow({
+    label: "Random seed",
+    placeholder: "auto-generate",
+    onChange: () => {},
   });
 
   const sliders = [
@@ -497,8 +543,6 @@ export const createControls = (sky) => {
       step: 1,
     },
   ];
-  const sliderByKey = new Map(sliders.map((slider) => [slider.key, slider]));
-
   const toggleRows = [
     { key: "sizeVariationEnabled", label: "Enable size variation" },
     { key: "timelapseEnabled", label: "Enable timelapse" },
@@ -510,9 +554,13 @@ export const createControls = (sky) => {
       config: sky.config,
       key: toggle.key,
       label: toggle.label,
-      onChange: () => applyAndPersist(),
+      onChange: () => {
+        syncSelectValue(controls, "scenePreset", "custom");
+        applyAndPersist();
+      },
     })
   );
+  const toggleKeys = toggleRows.map((toggleRow) => toggleRow.input.dataset.key);
 
   sliders.forEach((slider) => {
     const control = createSliderRow({
@@ -533,6 +581,7 @@ export const createControls = (sky) => {
           syncSelectValue(controls, "cameraPreset", "custom");
         }
 
+        syncSelectValue(controls, "scenePreset", "custom");
         applyAndPersist();
       },
     });
@@ -541,8 +590,11 @@ export const createControls = (sky) => {
     form.append(control.row);
   });
 
+  controls.set("scenePreset", scenePresetControl);
+  form.insertBefore(scenePresetControl.row, form.firstChild);
   controls.set("cameraPreset", presetControl);
-  form.insertBefore(presetControl.row, form.firstChild);
+  form.insertBefore(presetControl.row, form.children[1] ?? null);
+  form.insertBefore(seedControl.row, form.children[2] ?? null);
 
   toggleRows.forEach((toggleRow) => {
     controls.set(toggleRow.input.dataset.key, toggleRow);
@@ -582,55 +634,22 @@ export const createControls = (sky) => {
   randomizeButton.className = "control-button control-button--ghost";
   randomizeButton.textContent = "Randomize";
   randomizeButton.addEventListener("click", () => {
-    const preset =
-      CAMERA_PRESET_KEYS[Math.floor(Math.random() * CAMERA_PRESET_KEYS.length)];
+    if (!seedControl.input.value.trim()) {
+      seedControl.input.value = createRandomSeed();
+    }
 
-    applyCameraPreset(sky.config, preset);
-    syncSelectValue(controls, "cameraPreset", preset);
+    const result = applySeededRandomization({
+      config: sky.config,
+      sliders,
+      seed: seedControl.input.value,
+    });
+
+    seedControl.input.value = result.seed;
+    syncSelectValue(controls, "scenePreset", "custom");
+    syncSelectValue(controls, "cameraPreset", result.cameraPreset);
     syncCameraInputs(controls, sky.config);
-
-    sliders.forEach((slider) => {
-      if (
-        slider.key === "observerLatitude" ||
-        slider.key === "lookAzimuth" ||
-        slider.key === "lookAltitude" ||
-        slider.key === "lookRoll"
-      ) {
-        return;
-      }
-
-      const nextValue = randomizeSliderValue(slider);
-      sky.config[slider.key] = nextValue;
-      syncSliderControl(controls, slider.key, nextValue);
-    });
-
-    const maxStarsSlider = sliderByKey.get("maxStars");
-    const minStarsSlider = sliderByKey.get("minStars");
-    const boundedMinStars = quantizeToStep(
-      Math.min(
-        sky.config.maxStars,
-        minStarsSlider.min +
-          Math.random() * Math.max(minStarsSlider.step, sky.config.maxStars * 0.82)
-      ),
-      minStarsSlider.min,
-      minStarsSlider.step
-    );
-
-    sky.config.maxStars = Math.max(sky.config.maxStars, maxStarsSlider.min);
-    sky.config.minStars = Math.min(boundedMinStars, sky.config.maxStars);
-    syncSliderControl(controls, "maxStars", sky.config.maxStars);
-    syncSliderControl(controls, "minStars", sky.config.minStars);
-
-    [
-      ["sizeVariationEnabled", Math.random() > 0.1],
-      ["timelapseEnabled", Math.random() > 0.08],
-      ["atmosphereEnabled", Math.random() > 0.15],
-      ["gravityEnabled", Math.random() > 0.22],
-      ["meteorsEnabled", Math.random() > 0.18],
-    ].forEach(([key, value]) => {
-      sky.config[key] = value;
-      syncToggleControl(controls, key, value);
-    });
+    syncAllSliderControls(controls, sliders, sky.config);
+    syncAllToggleControls(controls, toggleKeys, sky.config);
 
     applyAndPersist();
     randomizeButton.textContent = "Randomized";
@@ -639,7 +658,15 @@ export const createControls = (sky) => {
     }, 1200);
   });
 
-  form.append(createButtonRow([randomizeButton, copyButton, resetButton]));
+  const seedButton = document.createElement("button");
+  seedButton.type = "button";
+  seedButton.className = "control-button control-button--ghost";
+  seedButton.textContent = "New seed";
+  seedButton.addEventListener("click", () => {
+    seedControl.input.value = createRandomSeed();
+  });
+
+  form.append(createButtonRow([seedButton, randomizeButton, copyButton, resetButton]));
 
   header.append(title, toggleButton);
   panel.append(header, description, notice, form);

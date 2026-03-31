@@ -14,7 +14,8 @@ The effect is designed to be understated rather than flashy:
 - rare meteor streaks for occasional higher-energy moments
 - modest glow and twinkle to keep the field alive without dominating content
 - live controls for tuning the scene directly in the browser
-- camera presets, saved settings, and clipboard export for config snippets
+- camera presets, scene presets, saved settings, and clipboard export for config snippets
+- seeded randomization for reproducible exploration
 - a small FPS overlay for quick performance checks while tuning
 
 ## Getting Started
@@ -58,6 +59,8 @@ npm test
 - [`src/sky/config-source.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config-source.js) formats the config as source code for clipboard export.
 - [`src/sky/config-storage.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config-storage.js) persists the current controls to `localStorage`.
 - [`src/sky/presets.js`](/home/fredrik/Documents/playground/stargazing/src/sky/presets.js) defines the camera presets.
+- [`src/sky/scene-presets.js`](/home/fredrik/Documents/playground/stargazing/src/sky/scene-presets.js) defines named high-impact scene presets.
+- [`src/sky/randomize.js`](/home/fredrik/Documents/playground/stargazing/src/sky/randomize.js) provides deterministic seeded config randomization.
 - [`src/sky/atmosphere.js`](/home/fredrik/Documents/playground/stargazing/src/sky/atmosphere.js) adds atmosphere and gravity-style projection distortion.
 - [`src/sky/meteors.js`](/home/fredrik/Documents/playground/stargazing/src/sky/meteors.js) manages rare meteor streaks and their rendering.
 - [`src/sky/createSky.js`](/home/fredrik/Documents/playground/stargazing/src/sky/createSky.js) owns canvas lifecycle, resize handling, and animation loop setup.
@@ -89,6 +92,7 @@ The main configuration lives in [`src/sky/config.js`](/home/fredrik/Documents/pl
 - `horizonFadeStart`, `horizonFadeEnd`, `edgeFadeStart`, `edgeFadeEnd`: adjusts visibility falloff near the horizon and frame edges.
 - `dprCap`: caps device pixel ratio for performance.
 - `cameraPreset`: selects the initial camera pose on the globe.
+- named scene presets provide curated looks, and the seeded randomizer lets you revisit any generated configuration by reusing the same seed.
 
 At runtime, the app instance is exposed as `window.skyDemo` with:
 
@@ -99,7 +103,7 @@ At runtime, the app instance is exposed as `window.skyDemo` with:
 - `window.skyDemo.getStats()` to inspect smoothed FPS, star count, and active meteors
 - `window.skyDemo.dispose()` to stop the animation and remove listeners
 
-The live control panel also saves to `localStorage` automatically, so the next reload starts with the same values. Use the reset button in the panel to clear the stored settings. The panel can be collapsed when you want an unobstructed look at the sky, and many slider ranges are intentionally broad enough for stress-testing and extreme tuning passes.
+The live control panel also saves to `localStorage` automatically, so the next reload starts with the same values. Use the reset button in the panel to clear the stored settings. The panel can be collapsed when you want an unobstructed look at the sky, many slider ranges are intentionally broad enough for stress-testing and extreme tuning passes, and the randomizer now supports explicit seeds so you can keep or share a generated look.
 
 ## Embedding
 
