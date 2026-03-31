@@ -1,6 +1,7 @@
 import { TAU } from "./config.js";
 import { drawAtmosphere } from "./atmosphere.js";
 import { drawMeteors, updateMeteorSystem } from "./meteors.js";
+import { sampleStarTwinkle } from "./motion.js";
 import { projectStar } from "./projection.js";
 
 export const drawSkyFrame = ({
@@ -17,7 +18,6 @@ export const drawSkyFrame = ({
   ctx.clearRect(0, 0, viewport.width, viewport.height);
 
   const time = elapsed * config.motionScale;
-  const frameDelta = delta * config.motionScale;
   const timelapseFactor = config.timelapseEnabled ? config.timelapseIntensity : 0.45;
   const rotation = time * timelapseFactor * config.rotationSpeed + skyDrift;
 
@@ -54,16 +54,12 @@ export const drawSkyFrame = ({
       config,
     });
 
-    const twinkle =
-      1 -
-      config.twinkleAmount * 0.5 +
-      Math.sin(
-        time * timelapseFactor * star.twinkleSpeed +
-          star.twinklePhase +
-          frameDelta * timelapseFactor * star.driftFactor
-      ) *
-        config.twinkleAmount *
-        0.5;
+    const twinkle = sampleStarTwinkle({
+      time,
+      star,
+      config,
+      timelapseFactor,
+    });
     const alpha = star.brightness * current.fade * twinkle;
     const lineAlpha = alpha * 0.18;
     const { r, g, b } = star.color;

@@ -15,3 +15,18 @@ export const sampleAtmospherePulse = ({ elapsed, config }) => {
 
   return lerp(0.72, 1.02, base * 0.8 + detail * 0.2);
 };
+
+export const sampleStarTwinkle = ({ time, star, config, timelapseFactor }) => {
+  const twinkleTime = time * timelapseFactor;
+  const base = valueNoise1D(
+    twinkleTime * star.twinkleSpeed * 0.16 + star.twinkleSeed,
+    star.twinkleSeed + config.driftSeed
+  );
+  const detail = valueNoise1D(
+    twinkleTime * star.twinkleSpeed * 0.52 + star.twinkleSeed * 1.9,
+    star.twinkleSeed * 0.67 + config.driftSeed * 3.4
+  );
+  const shimmer = base * 0.78 + detail * 0.22;
+
+  return lerp(1 - config.twinkleAmount * 0.42, 1 + config.twinkleAmount * 0.12, shimmer);
+};

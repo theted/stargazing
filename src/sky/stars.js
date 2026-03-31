@@ -54,10 +54,9 @@ export const createStars = (count, config) =>
       cosDec,
       brightness,
       size,
-      twinklePhase: Math.random() * TAU,
+      twinkleSeed: Math.random() * 10_000,
       twinkleSpeed: lerp(config.twinkleSpeedMin, config.twinkleSpeedMax, Math.random()),
       trailScale: lerp(0.75, 1.35, Math.random()),
-      driftFactor: lerp(0.88, 1.52, Math.random()) * (index % 3 === 0 ? 1.08 : 1),
       color,
     };
   });
