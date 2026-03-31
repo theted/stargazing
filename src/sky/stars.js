@@ -18,17 +18,23 @@ export const createStars = (count, config) =>
     const hourOffset = Math.random() * TAU;
     const bandWave = Math.sin(hourOffset * config.bandFrequency + config.bandPhase);
     const bandNoise = randomNormal(Math.random, 0, config.bandSpread);
-    const declinationSeed = useBand
-      ? clamp(
-          bandWave * config.bandAmplitude + bandNoise,
-          -0.985,
-          0.985
-        )
-      : Math.random() * 2 - 1;
+    const spreadNoise = randomNormal(Math.random, 0, config.starSpread);
+    const declinationSeed = clamp(
+      (useBand ? bandWave * config.bandAmplitude : spreadNoise * 0.85) + bandNoise,
+      -0.985,
+      0.985
+    );
     const sinDec = declinationSeed;
     const cosDec = Math.sqrt(1 - declinationSeed * declinationSeed);
-    const brightness = 0.18 + Math.pow(Math.random(), 3.8) * 0.82;
-    const size = lerp(config.baseStarSize, config.maxStarSize, Math.pow(Math.random(), 4.5));
+    const brightness = 0.12 + Math.pow(Math.random(), 3.2) * 0.88;
+    const sizeCurve = config.sizeVariationEnabled
+      ? Math.max(1.5, 4.5 - config.starSizeVariation)
+      : 8;
+    const size = lerp(
+      config.baseStarSize,
+      config.maxStarSize,
+      Math.pow(Math.random(), sizeCurve)
+    );
     const warmthMix = Math.random();
     const coolMix = Math.random();
     const warmShift = blendColor(
@@ -51,7 +57,7 @@ export const createStars = (count, config) =>
       twinklePhase: Math.random() * TAU,
       twinkleSpeed: lerp(config.twinkleSpeedMin, config.twinkleSpeedMax, Math.random()),
       trailScale: lerp(0.75, 1.35, Math.random()),
-      driftFactor: lerp(0.9, 1.4, Math.random()) * (index % 3 === 0 ? 1.08 : 1),
+      driftFactor: lerp(0.88, 1.52, Math.random()) * (index % 3 === 0 ? 1.08 : 1),
       color,
     };
   });

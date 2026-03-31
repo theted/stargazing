@@ -1,4 +1,5 @@
 import { TAU } from "./config.js";
+import { drawAtmosphere } from "./atmosphere.js";
 import { projectStar } from "./projection.js";
 
 export const drawSkyFrame = ({
@@ -14,11 +15,14 @@ export const drawSkyFrame = ({
 
   const time = elapsed * config.motionScale;
   const frameDelta = delta * config.motionScale;
+  const timelapseFactor = config.timelapseEnabled ? config.timelapseIntensity : 0.45;
   const drift = Math.sin(time * 0.09 + config.driftSeed) * config.backgroundParallax;
-  const rotation = time * config.rotationSpeed + drift;
+  const rotation = time * timelapseFactor * config.rotationSpeed + drift;
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
+
+  drawAtmosphere(ctx, viewport, config, elapsed);
 
   for (const star of stars) {
     const current = projectStar({
@@ -45,7 +49,11 @@ export const drawSkyFrame = ({
     const twinkle =
       1 -
       config.twinkleAmount * 0.5 +
-      Math.sin(time * star.twinkleSpeed + star.twinklePhase + frameDelta * star.driftFactor) *
+      Math.sin(
+        time * timelapseFactor * star.twinkleSpeed +
+          star.twinklePhase +
+          frameDelta * timelapseFactor * star.driftFactor
+      ) *
         config.twinkleAmount *
         0.5;
     const alpha = star.brightness * current.fade * twinkle;

@@ -1,6 +1,7 @@
 import { drawSkyFrame } from "./renderer.js";
 import { createDerivedScene, createViewport } from "./projection.js";
 import { createStars, getStarCount } from "./stars.js";
+import { copySkyConfigSourceToClipboard, formatSkyConfigSource } from "./config-source.js";
 
 export const createSky = (canvas, config) => {
   const context = canvas.getContext("2d");
@@ -95,6 +96,10 @@ export const createSky = (canvas, config) => {
     resize();
   };
 
+  const copyConfigToClipboard = () => copySkyConfigSourceToClipboard(config);
+
+  const getConfigSource = () => formatSkyConfigSource(config);
+
   const dispose = () => {
     window.cancelAnimationFrame(state.animationFrame);
     window.removeEventListener("resize", resize);
@@ -111,6 +116,8 @@ export const createSky = (canvas, config) => {
     config,
     regenerate,
     applyConfig,
+    copyConfigToClipboard,
+    getConfigSource,
     dispose,
   };
 };

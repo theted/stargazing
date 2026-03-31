@@ -1,4 +1,5 @@
 import { DEG } from "./config.js";
+import { warpSkyProjection } from "./atmosphere.js";
 import { cross, dot, lerp, normalize, rotateAroundAxis, smoothstep } from "./math.js";
 
 const WORLD_UP = { x: 0, y: 1, z: 0 };
@@ -88,7 +89,15 @@ export const projectDirection = ({ direction, derived, viewport, config }) => {
     return { visible: false };
   }
 
-  return { visible: true, x, y, scale, fade };
+  return warpSkyProjection({
+    projection: { visible: true, x, y, scale, fade },
+    direction,
+    viewX,
+    viewY,
+    viewZ,
+    viewport,
+    config,
+  });
 };
 
 export const projectStar = ({
