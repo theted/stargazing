@@ -2,6 +2,8 @@ export const lerp = (start, end, amount) => start + (end - start) * amount;
 
 export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+export const fract = (value) => value - Math.floor(value);
+
 export const smoothstep = (min, max, value) => {
   const amount = clamp((value - min) / (max - min), 0, 1);
   return amount * amount * (3 - 2 * amount);
@@ -44,4 +46,16 @@ export const randomNormal = (random = Math.random, mean = 0, standardDeviation =
   const gaussian = Math.sqrt(-2 * Math.log(u1)) * Math.cos(Math.PI * 2 * u2);
 
   return mean + gaussian * standardDeviation;
+};
+
+export const hashNoise1D = (value, seed = 0) =>
+  fract(Math.sin(value * 127.1 + seed * 311.7) * 43758.5453123);
+
+export const valueNoise1D = (value, seed = 0) => {
+  const left = Math.floor(value);
+  const amount = smoothstep(0, 1, fract(value));
+  const start = hashNoise1D(left, seed);
+  const end = hashNoise1D(left + 1, seed);
+
+  return lerp(start, end, amount);
 };

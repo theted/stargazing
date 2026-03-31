@@ -1,4 +1,5 @@
 import { clamp, lerp, smoothstep } from "./math.js";
+import { sampleAtmospherePulse } from "./motion.js";
 
 export const warpSkyProjection = ({
   projection,
@@ -52,8 +53,8 @@ export const drawAtmosphere = (ctx, viewport, config, elapsed) => {
     return;
   }
 
-  const shimmer = Math.sin(elapsed * 0.55 + config.driftSeed) * 0.5 + 0.5;
-  const hazeAlpha = 0.18 * config.atmosphereStrength * config.atmosphereGlow * (0.7 + shimmer * 0.3);
+  const pulse = sampleAtmospherePulse({ elapsed, config });
+  const hazeAlpha = 0.18 * config.atmosphereStrength * config.atmosphereGlow * pulse;
   const horizonY = viewport.height * 0.28;
   const bottomY = viewport.height;
 

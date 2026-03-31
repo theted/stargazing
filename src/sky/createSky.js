@@ -3,6 +3,7 @@ import { createDerivedScene, createViewport } from "./projection.js";
 import { createStars, getStarCount } from "./stars.js";
 import { copySkyConfigSourceToClipboard, formatSkyConfigSource } from "./config-source.js";
 import { createMeteorSystem, resetMeteorSystem } from "./meteors.js";
+import { sampleSkyDriftVelocity } from "./motion.js";
 
 export const createSky = (canvas, config) => {
   const context = canvas.getContext("2d");
@@ -23,6 +24,7 @@ export const createSky = (canvas, config) => {
     lastTime: 0,
     startTime: performance.now(),
     pauseStartedAt: 0,
+    skyDrift: 0,
     fps: 0,
     fpsFrames: 0,
     fpsElapsed: 0,
@@ -72,12 +74,18 @@ export const createSky = (canvas, config) => {
       state.fpsElapsed = 0;
     }
 
+    state.skyDrift += sampleSkyDriftVelocity({
+      elapsed,
+      config,
+    }) * delta;
+
     drawSkyFrame({
       ctx: context,
       stars: state.stars,
       config,
       derived: state.derived,
       meteorSystem: state.meteorSystem,
+      skyDrift: state.skyDrift,
       viewport: state.viewport,
       elapsed,
       delta: Math.min(delta, 0.1),

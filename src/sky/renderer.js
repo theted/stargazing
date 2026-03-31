@@ -9,6 +9,7 @@ export const drawSkyFrame = ({
   config,
   derived,
   meteorSystem,
+  skyDrift,
   viewport,
   elapsed,
   delta,
@@ -18,8 +19,7 @@ export const drawSkyFrame = ({
   const time = elapsed * config.motionScale;
   const frameDelta = delta * config.motionScale;
   const timelapseFactor = config.timelapseEnabled ? config.timelapseIntensity : 0.45;
-  const drift = Math.sin(time * 0.09 + config.driftSeed) * config.backgroundParallax;
-  const rotation = time * timelapseFactor * config.rotationSpeed + drift;
+  const rotation = time * timelapseFactor * config.rotationSpeed + skyDrift;
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
