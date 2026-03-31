@@ -1,5 +1,6 @@
 import { TAU } from "./config.js";
 import { drawAtmosphere } from "./atmosphere.js";
+import { drawMeteors, updateMeteorSystem } from "./meteors.js";
 import { projectStar } from "./projection.js";
 
 export const drawSkyFrame = ({
@@ -7,6 +8,7 @@ export const drawSkyFrame = ({
   stars,
   config,
   derived,
+  meteorSystem,
   viewport,
   elapsed,
   delta,
@@ -23,6 +25,12 @@ export const drawSkyFrame = ({
   ctx.globalCompositeOperation = "lighter";
 
   drawAtmosphere(ctx, viewport, config, elapsed);
+  updateMeteorSystem({
+    system: meteorSystem,
+    viewport,
+    config,
+    delta,
+  });
 
   for (const star of stars) {
     const current = projectStar({
@@ -83,6 +91,11 @@ export const drawSkyFrame = ({
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
     ctx.fill();
   }
+
+  drawMeteors({
+    ctx,
+    system: meteorSystem,
+  });
 
   ctx.restore();
 };

@@ -43,6 +43,14 @@ export const SKY_CONFIG = {
   screenCoverageBoost: 0.26,
   edgeMagnification: 0.18,
   horizonMagnification: 0.24,
+  meteorsEnabled: true,
+  meteorRate: 2.2,
+  meteorDurationMin: 0.68,
+  meteorDurationMax: 1.18,
+  meteorTrailLength: 0.19,
+  meteorGlow: 0.95,
+  meteorWidth: 1.85,
+  maxActiveMeteors: 2,
 };
 
 export const TAU = Math.PI * 2;

@@ -174,10 +174,20 @@ export const createControls = (sky) => {
   const panel = document.createElement("section");
   panel.className = "controls";
   panel.setAttribute("aria-label", "Sky configuration controls");
+  panel.classList.toggle("controls--collapsed", false);
+
+  const header = document.createElement("div");
+  header.className = "controls-header";
 
   const title = document.createElement("h2");
   title.className = "controls-title";
   title.textContent = "Live controls";
+
+  const toggleButton = document.createElement("button");
+  toggleButton.type = "button";
+  toggleButton.className = "controls-toggle";
+  toggleButton.setAttribute("aria-expanded", "true");
+  toggleButton.textContent = "Hide";
 
   const description = document.createElement("p");
   description.className = "controls-description";
@@ -193,6 +203,18 @@ export const createControls = (sky) => {
   const controls = new Map();
   const persistConfig = () => writeSkyConfigToStorage(sky.config);
   const applyAndPersist = scheduleApply(sky.applyConfig, persistConfig);
+  let collapsed = false;
+
+  const syncCollapsedState = () => {
+    panel.classList.toggle("controls--collapsed", collapsed);
+    toggleButton.textContent = collapsed ? "Show" : "Hide";
+    toggleButton.setAttribute("aria-expanded", String(!collapsed));
+  };
+
+  toggleButton.addEventListener("click", () => {
+    collapsed = !collapsed;
+    syncCollapsedState();
+  });
 
   const presetControl = createSelectRow({
     config: sky.config,
@@ -221,29 +243,29 @@ export const createControls = (sky) => {
       key: "density",
       label: "Density",
       min: 0.00005,
-      max: 0.002,
+      max: 0.005,
       step: 0.00001,
       format: (value) => `${value.toFixed(5)} / px`,
     },
     {
       key: "minStars",
       label: "Min stars",
-      min: 500,
-      max: 14000,
-      step: 10,
+      min: 0,
+      max: 50000,
+      step: 25,
     },
     {
       key: "maxStars",
       label: "Max stars",
-      min: 1000,
-      max: 22000,
-      step: 25,
+      min: 100,
+      max: 90000,
+      step: 50,
     },
     {
       key: "baseStarSize",
       label: "Base star size",
       min: 0.15,
-      max: 1.4,
+      max: 2.5,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -251,7 +273,7 @@ export const createControls = (sky) => {
       key: "maxStarSize",
       label: "Max star size",
       min: 0.6,
-      max: 5,
+      max: 10,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -259,7 +281,7 @@ export const createControls = (sky) => {
       key: "starSizeVariation",
       label: "Star variation",
       min: 0,
-      max: 4,
+      max: 6,
       step: 0.05,
       format: (value) => value.toFixed(2),
     },
@@ -267,7 +289,7 @@ export const createControls = (sky) => {
       key: "motionScale",
       label: "Motion scale",
       min: 0.4,
-      max: 8,
+      max: 20,
       step: 0.1,
       format: (value) => value.toFixed(1),
     },
@@ -275,7 +297,7 @@ export const createControls = (sky) => {
       key: "timelapseIntensity",
       label: "Timelapse",
       min: 0.5,
-      max: 3.5,
+      max: 8,
       step: 0.05,
       format: (value) => value.toFixed(2),
     },
@@ -283,7 +305,7 @@ export const createControls = (sky) => {
       key: "rotationSpeed",
       label: "Rotation speed",
       min: 0.0002,
-      max: 0.01,
+      max: 0.02,
       step: 0.00005,
       format: (value) => value.toFixed(4),
     },
@@ -291,7 +313,7 @@ export const createControls = (sky) => {
       key: "trailTimeWarp",
       label: "Trail warp",
       min: 0,
-      max: 30,
+      max: 80,
       step: 0.1,
       format: (value) => value.toFixed(1),
     },
@@ -299,7 +321,7 @@ export const createControls = (sky) => {
       key: "backgroundParallax",
       label: "Background parallax",
       min: 0,
-      max: 0.2,
+      max: 0.45,
       step: 0.001,
       format: (value) => value.toFixed(3),
     },
@@ -315,7 +337,7 @@ export const createControls = (sky) => {
       key: "bandAmplitude",
       label: "Band amplitude",
       min: 0,
-      max: 1,
+      max: 1.5,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -323,7 +345,7 @@ export const createControls = (sky) => {
       key: "screenCoverageBoost",
       label: "Coverage boost",
       min: 0,
-      max: 1.5,
+      max: 4,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -331,7 +353,7 @@ export const createControls = (sky) => {
       key: "edgeMagnification",
       label: "Edge magnification",
       min: 0,
-      max: 1.5,
+      max: 4,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -339,7 +361,7 @@ export const createControls = (sky) => {
       key: "horizonMagnification",
       label: "Horizon magnification",
       min: 0,
-      max: 2,
+      max: 5,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -347,7 +369,7 @@ export const createControls = (sky) => {
       key: "starSpread",
       label: "Star spread",
       min: 0,
-      max: 1.5,
+      max: 2.5,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -355,7 +377,7 @@ export const createControls = (sky) => {
       key: "atmosphereStrength",
       label: "Atmosphere strength",
       min: 0,
-      max: 1.8,
+      max: 3.5,
       step: 0.01,
       format: (value) => value.toFixed(2),
     },
@@ -363,9 +385,48 @@ export const createControls = (sky) => {
       key: "gravityStrength",
       label: "Gravity strength",
       min: 0,
-      max: 0.9,
+      max: 1.6,
       step: 0.01,
       format: (value) => value.toFixed(2),
+    },
+    {
+      key: "meteorRate",
+      label: "Meteors / min",
+      min: 0,
+      max: 24,
+      step: 0.1,
+      format: (value) => value.toFixed(1),
+    },
+    {
+      key: "meteorTrailLength",
+      label: "Meteor trail",
+      min: 0.05,
+      max: 0.8,
+      step: 0.01,
+      format: (value) => value.toFixed(2),
+    },
+    {
+      key: "meteorGlow",
+      label: "Meteor glow",
+      min: 0.4,
+      max: 3.2,
+      step: 0.05,
+      format: (value) => value.toFixed(2),
+    },
+    {
+      key: "meteorWidth",
+      label: "Meteor width",
+      min: 0.5,
+      max: 4.5,
+      step: 0.05,
+      format: (value) => value.toFixed(2),
+    },
+    {
+      key: "maxActiveMeteors",
+      label: "Max meteors",
+      min: 0,
+      max: 8,
+      step: 1,
     },
     {
       key: "observerLatitude",
@@ -402,6 +463,7 @@ export const createControls = (sky) => {
     { key: "timelapseEnabled", label: "Enable timelapse" },
     { key: "atmosphereEnabled", label: "Enable atmosphere" },
     { key: "gravityEnabled", label: "Enable gravity" },
+    { key: "meteorsEnabled", label: "Enable meteors" },
   ].map((toggle) =>
     createToggleRow({
       config: sky.config,
@@ -475,6 +537,8 @@ export const createControls = (sky) => {
 
   form.append(createButtonRow([copyButton, resetButton]));
 
-  panel.append(title, description, notice, form);
+  header.append(title, toggleButton);
+  panel.append(header, description, notice, form);
+  syncCollapsedState();
   return panel;
 };

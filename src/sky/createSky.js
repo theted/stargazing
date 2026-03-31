@@ -2,6 +2,7 @@ import { drawSkyFrame } from "./renderer.js";
 import { createDerivedScene, createViewport } from "./projection.js";
 import { createStars, getStarCount } from "./stars.js";
 import { copySkyConfigSourceToClipboard, formatSkyConfigSource } from "./config-source.js";
+import { createMeteorSystem, resetMeteorSystem } from "./meteors.js";
 
 export const createSky = (canvas, config) => {
   const context = canvas.getContext("2d");
@@ -17,6 +18,7 @@ export const createSky = (canvas, config) => {
     stars: [],
     viewport: createViewport(1, 1, config.fieldOfView),
     derived: createDerivedScene(config),
+    meteorSystem: createMeteorSystem(config),
     animationFrame: 0,
     lastTime: 0,
     startTime: performance.now(),
@@ -53,6 +55,7 @@ export const createSky = (canvas, config) => {
     context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
     syncDerived();
     regenerate();
+    resetMeteorSystem(state.meteorSystem, config);
   };
 
   const animate = (now) => {
@@ -74,6 +77,7 @@ export const createSky = (canvas, config) => {
       stars: state.stars,
       config,
       derived: state.derived,
+      meteorSystem: state.meteorSystem,
       viewport: state.viewport,
       elapsed,
       delta: Math.min(delta, 0.1),
@@ -116,6 +120,7 @@ export const createSky = (canvas, config) => {
   const getStats = () => ({
     fps: state.fps,
     starCount: state.stars.length,
+    meteorCount: state.meteorSystem.active.length,
   });
 
   const dispose = () => {
