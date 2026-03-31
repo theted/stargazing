@@ -21,6 +21,9 @@ export const createSky = (canvas, config) => {
     lastTime: 0,
     startTime: performance.now(),
     pauseStartedAt: 0,
+    fps: 0,
+    fpsFrames: 0,
+    fpsElapsed: 0,
   };
 
   const regenerate = () => {
@@ -57,6 +60,14 @@ export const createSky = (canvas, config) => {
     const delta = state.lastTime ? (now - state.lastTime) * 0.001 : 0.016;
 
     state.lastTime = now;
+    state.fpsFrames += 1;
+    state.fpsElapsed += delta;
+
+    if (state.fpsElapsed >= 0.25) {
+      state.fps = state.fpsFrames / state.fpsElapsed;
+      state.fpsFrames = 0;
+      state.fpsElapsed = 0;
+    }
 
     drawSkyFrame({
       ctx: context,
@@ -85,6 +96,8 @@ export const createSky = (canvas, config) => {
     }
 
     state.lastTime = 0;
+    state.fpsFrames = 0;
+    state.fpsElapsed = 0;
 
     if (!state.animationFrame) {
       state.animationFrame = window.requestAnimationFrame(animate);
@@ -99,6 +112,11 @@ export const createSky = (canvas, config) => {
   const copyConfigToClipboard = () => copySkyConfigSourceToClipboard(config);
 
   const getConfigSource = () => formatSkyConfigSource(config);
+
+  const getStats = () => ({
+    fps: state.fps,
+    starCount: state.stars.length,
+  });
 
   const dispose = () => {
     window.cancelAnimationFrame(state.animationFrame);
@@ -118,6 +136,7 @@ export const createSky = (canvas, config) => {
     applyConfig,
     copyConfigToClipboard,
     getConfigSource,
+    getStats,
     dispose,
   };
 };

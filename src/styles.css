@@ -172,6 +172,25 @@ h1 {
   line-height: 1.4;
 }
 
+.fps-counter {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 2;
+  min-width: 5.75rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(205, 220, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 5, 12, 0.58);
+  color: rgba(235, 242, 255, 0.88);
+  font-family: "SFMono-Regular", "JetBrains Mono", "Consolas", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+}
+
 @media (max-width: 720px) {
   .content {
     align-content: center;
@@ -189,5 +208,10 @@ h1 {
 
   h1 {
     max-width: 8ch;
+  }
+
+  .fps-counter {
+    top: 0.75rem;
+    left: 0.75rem;
   }
 }
