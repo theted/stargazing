@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEG } from "./config.js";
 import {
+  createProjectionTarget,
   createDerivedScene,
   createViewport,
   equatorialToHorizontal,
@@ -70,5 +71,21 @@ describe("projection", () => {
     });
 
     expect(projection.visible).toBe(false);
+  });
+
+  it("can project into a reusable target without allocating a new result", () => {
+    const derived = createDerivedScene(config);
+    const viewport = createViewport(1440, 900, config.fieldOfView);
+    const target = createProjectionTarget();
+    const projection = projectDirection({
+      direction: derived.camera.forward,
+      derived,
+      viewport,
+      config,
+      target,
+    });
+
+    expect(projection).toBe(target);
+    expect(projection.visible).toBe(true);
   });
 });

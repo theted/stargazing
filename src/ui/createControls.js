@@ -318,6 +318,19 @@ export const createControls = (sky) => {
     },
   });
 
+  const stageModeControl = createSelectRow({
+    config: { stageMode: sky.getDisplayMode?.() ?? "fullscreen" },
+    key: "stageMode",
+    label: "Stage size",
+    options: [
+      { value: "fullscreen", label: "Fullscreen" },
+      { value: "boxed", label: "300 x 300 centered" },
+    ],
+    onChange: (_, nextValue) => {
+      sky.setDisplayMode?.(nextValue);
+    },
+  });
+
   const seedControl = createTextRow({
     label: "Random seed",
     placeholder: "auto-generate",
@@ -594,7 +607,9 @@ export const createControls = (sky) => {
   form.insertBefore(scenePresetControl.row, form.firstChild);
   controls.set("cameraPreset", presetControl);
   form.insertBefore(presetControl.row, form.children[1] ?? null);
-  form.insertBefore(seedControl.row, form.children[2] ?? null);
+  controls.set("stageMode", stageModeControl);
+  form.insertBefore(stageModeControl.row, form.children[2] ?? null);
+  form.insertBefore(seedControl.row, form.children[3] ?? null);
 
   toggleRows.forEach((toggleRow) => {
     controls.set(toggleRow.input.dataset.key, toggleRow);

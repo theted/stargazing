@@ -1,4 +1,4 @@
-import { drawSkyFrame } from "./renderer.js";
+import { createRenderScratch, drawSkyFrame } from "./renderer.js";
 import { createDerivedScene, createViewport } from "./projection.js";
 import { createStars, getStarCount } from "./stars.js";
 import { copySkyConfigSourceToClipboard, formatSkyConfigSource } from "./config-source.js";
@@ -6,7 +6,10 @@ import { createMeteorSystem, resetMeteorSystem } from "./meteors.js";
 import { sampleSkyDriftVelocity } from "./motion.js";
 
 export const createSky = (canvas, config) => {
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", {
+    alpha: true,
+    desynchronized: true,
+  });
 
   if (!context) {
     throw new Error("Canvas context is unavailable.");
@@ -20,6 +23,7 @@ export const createSky = (canvas, config) => {
     viewport: createViewport(1, 1, config.fieldOfView),
     derived: createDerivedScene(config),
     meteorSystem: createMeteorSystem(config),
+    scratch: createRenderScratch(),
     animationFrame: 0,
     lastTime: 0,
     startTime: performance.now(),
@@ -43,16 +47,15 @@ export const createSky = (canvas, config) => {
   };
 
   const resize = () => {
-    const { innerWidth, innerHeight, devicePixelRatio = 1 } = window;
+    const { devicePixelRatio = 1 } = window;
+    const bounds = canvas.getBoundingClientRect();
 
-    state.width = innerWidth;
-    state.height = innerHeight;
+    state.width = Math.max(1, Math.round(bounds.width || window.innerWidth));
+    state.height = Math.max(1, Math.round(bounds.height || window.innerHeight));
     state.dpr = Math.min(devicePixelRatio, config.dprCap);
 
     canvas.width = Math.round(state.width * state.dpr);
     canvas.height = Math.round(state.height * state.dpr);
-    canvas.style.width = `${state.width}px`;
-    canvas.style.height = `${state.height}px`;
 
     context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
     syncDerived();
@@ -85,6 +88,7 @@ export const createSky = (canvas, config) => {
       config,
       derived: state.derived,
       meteorSystem: state.meteorSystem,
+      scratch: state.scratch,
       skyDrift: state.skyDrift,
       viewport: state.viewport,
       elapsed,
@@ -117,7 +121,6 @@ export const createSky = (canvas, config) => {
   };
 
   const applyConfig = () => {
-    syncDerived();
     resize();
   };
 
@@ -129,6 +132,8 @@ export const createSky = (canvas, config) => {
     fps: state.fps,
     starCount: state.stars.length,
     meteorCount: state.meteorSystem.active.length,
+    width: state.width,
+    height: state.height,
   });
 
   const dispose = () => {
@@ -150,6 +155,7 @@ export const createSky = (canvas, config) => {
     copyConfigToClipboard,
     getConfigSource,
     getStats,
+    resize,
     dispose,
   };
 };

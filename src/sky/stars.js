@@ -13,7 +13,7 @@ export const getStarCount = ({ width, height }, config) => {
 };
 
 export const createStars = (count, config) =>
-  Array.from({ length: count }, (_, index) => {
+  Array.from({ length: count }, () => {
     const useBand = Math.random() < config.bandWeight;
     const hourOffset = Math.random() * TAU;
     const bandWave = Math.sin(hourOffset * config.bandFrequency + config.bandPhase);
@@ -54,9 +54,11 @@ export const createStars = (count, config) =>
       cosDec,
       brightness,
       size,
+      colorCss: `rgb(${color.r} ${color.g} ${color.b})`,
       twinkleSeed: Math.random() * 10_000,
+      twinkleTick: -1,
+      twinkleValue: 1,
       twinkleSpeed: lerp(config.twinkleSpeedMin, config.twinkleSpeedMax, Math.random()),
       trailScale: lerp(0.75, 1.35, Math.random()),
-      color,
     };
   });

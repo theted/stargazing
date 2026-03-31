@@ -24,6 +24,17 @@ if (SKY_CONFIG.cameraPreset && SKY_CONFIG.cameraPreset !== "custom") {
 
 const sky = createSky(canvas, SKY_CONFIG);
 
+const setDisplayMode = (mode) => {
+  const nextMode = mode === "boxed" ? "boxed" : "fullscreen";
+  document.body.dataset.stageMode = nextMode;
+  sky.resize();
+};
+
+sky.getDisplayMode = () => document.body.dataset.stageMode || "fullscreen";
+sky.setDisplayMode = setDisplayMode;
+
+setDisplayMode("fullscreen");
+
 window.skyDemo = sky;
 
 if (content instanceof HTMLElement) {

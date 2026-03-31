@@ -5,6 +5,24 @@ import { cross, dot, lerp, normalize, rotateAroundAxis, smoothstep } from "./mat
 const WORLD_UP = { x: 0, y: 1, z: 0 };
 const WORLD_FORWARD = { x: 0, y: 0, z: 1 };
 
+const createInvisibleProjection = () => ({
+  visible: false,
+  x: 0,
+  y: 0,
+  scale: 1,
+  fade: 0,
+});
+
+const hideProjection = (target) => {
+  target.visible = false;
+  target.fade = 0;
+  return target;
+};
+
+export const createDirectionTarget = () => ({ x: 0, y: 0, z: 0 });
+
+export const createProjectionTarget = () => createInvisibleProjection();
+
 export const buildCamera = ({ azimuth, altitude, roll }) => {
   const forward = normalize({
     x: Math.cos(altitude) * Math.sin(azimuth),
@@ -45,20 +63,31 @@ export const createViewport = (width, height, fieldOfView) => ({
   focal: (Math.min(width, height) * 0.5) / Math.tan((fieldOfView * DEG) * 0.5),
 });
 
-export const equatorialToHorizontal = ({ star, hourAngle, derived }) => {
+export const equatorialToHorizontal = ({
+  star,
+  hourAngle,
+  derived,
+  target = createDirectionTarget(),
+}) => {
   const sinHour = Math.sin(hourAngle);
   const cosHour = Math.cos(hourAngle);
 
-  return {
-    x: -star.cosDec * sinHour,
-    y: star.sinDec * derived.latSin + star.cosDec * derived.latCos * cosHour,
-    z: star.sinDec * derived.latCos - star.cosDec * derived.latSin * cosHour,
-  };
+  target.x = -star.cosDec * sinHour;
+  target.y = star.sinDec * derived.latSin + star.cosDec * derived.latCos * cosHour;
+  target.z = star.sinDec * derived.latCos - star.cosDec * derived.latSin * cosHour;
+
+  return target;
 };
 
-export const projectDirection = ({ direction, derived, viewport, config }) => {
+export const projectDirection = ({
+  direction,
+  derived,
+  viewport,
+  config,
+  target = createProjectionTarget(),
+}) => {
   if (direction.y < config.horizonFadeStart) {
-    return { visible: false };
+    return hideProjection(target);
   }
 
   const viewX = dot(direction, derived.camera.right);
@@ -66,7 +95,7 @@ export const projectDirection = ({ direction, derived, viewport, config }) => {
   const viewZ = dot(direction, derived.camera.forward);
 
   if (viewZ <= config.edgeFadeStart) {
-    return { visible: false };
+    return hideProjection(target);
   }
 
   const x = viewport.cx + (viewX / viewZ) * viewport.focal;
@@ -76,7 +105,7 @@ export const projectDirection = ({ direction, derived, viewport, config }) => {
   const inFrame = ndcX >= -0.1 && ndcX <= 1.1 && ndcY >= -0.1 && ndcY <= 1.1;
 
   if (!inFrame) {
-    return { visible: false };
+    return hideProjection(target);
   }
 
   const horizonFade = smoothstep(config.horizonFadeStart, config.horizonFadeEnd, direction.y);
@@ -86,17 +115,21 @@ export const projectDirection = ({ direction, derived, viewport, config }) => {
   const fade = horizonFade * edgeFade;
 
   if (fade <= 0.01) {
-    return { visible: false };
+    return hideProjection(target);
   }
 
   return warpSkyProjection({
-    projection: { visible: true, x, y, scale, fade },
+    projectionX: x,
+    projectionY: y,
+    projectionScale: scale,
+    projectionFade: fade,
     direction,
     viewX,
     viewY,
     viewZ,
     viewport,
     config,
+    target,
   });
 };
 
@@ -107,14 +140,18 @@ export const projectStar = ({
   derived,
   viewport,
   config,
+  directionTarget = createDirectionTarget(),
+  target = createProjectionTarget(),
 }) =>
   projectDirection({
     direction: equatorialToHorizontal({
       star,
       hourAngle: star.hourOffset + rotation + offset,
       derived,
+      target: directionTarget,
     }),
     derived,
     viewport,
     config,
+    target,
   });

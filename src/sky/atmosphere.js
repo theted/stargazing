@@ -1,18 +1,51 @@
 import { clamp, lerp, smoothstep } from "./math.js";
 import { sampleAtmospherePulse } from "./motion.js";
 
+export const createAtmosphereCache = () => ({
+  width: 0,
+  height: 0,
+  haze: null,
+  glow: null,
+  horizonY: 0,
+});
+
+const assignProjection = (target, visible, x, y, scale, fade) => {
+  target.visible = visible;
+  target.x = x;
+  target.y = y;
+  target.scale = scale;
+  target.fade = fade;
+  return target;
+};
+
 export const warpSkyProjection = ({
   projection,
+  projectionX,
+  projectionY,
+  projectionScale,
+  projectionFade,
   direction,
   viewX,
   viewY,
   viewZ,
   viewport,
   config,
+  target = {
+    visible: false,
+    x: 0,
+    y: 0,
+    scale: 1,
+    fade: 0,
+  },
 }) => {
   const coverageStrength = config.screenCoverageBoost ?? 0;
   const edgeStrength = config.edgeMagnification ?? 0;
   const horizonStrength = config.horizonMagnification ?? 0;
+  const baseVisible = projection?.visible ?? true;
+  const baseX = projection?.x ?? projectionX;
+  const baseY = projection?.y ?? projectionY;
+  const baseScale = projection?.scale ?? projectionScale;
+  const baseFade = projection?.fade ?? projectionFade;
 
   if (
     !config.atmosphereEnabled &&
@@ -21,7 +54,14 @@ export const warpSkyProjection = ({
     edgeStrength <= 0 &&
     horizonStrength <= 0
   ) {
-    return projection;
+    return assignProjection(
+      target,
+      baseVisible,
+      baseX,
+      baseY,
+      baseScale,
+      baseFade
+    );
   }
 
   const horizon = clamp(1 - direction.y, 0, 1);
@@ -39,34 +79,31 @@ export const warpSkyProjection = ({
   const lift = atmosphere * viewport.height * 0.018;
   const shimmer = atmosphere * Math.sin((viewX + viewY) * 10) * viewport.width * 0.0025;
 
-  return {
-    visible: projection.visible,
-    x: viewport.cx + (projection.x - viewport.cx) * centerPull * coverageBoost * edgeBoost + shimmer * 0.5,
-    y: projection.y + lift - gravity * viewport.height * 0.012 * horizonBoost,
-    scale: projection.scale * (1 + atmosphere * 0.18 + gravity * 0.08) * coverageBoost * horizonBoost,
-    fade: projection.fade * (1 - atmosphere * 0.16),
-  };
+  return assignProjection(
+    target,
+    baseVisible,
+    viewport.cx +
+      (baseX - viewport.cx) * centerPull * coverageBoost * edgeBoost +
+      shimmer * 0.5,
+    baseY + lift - gravity * viewport.height * 0.012 * horizonBoost,
+    baseScale *
+      (1 + atmosphere * 0.18 + gravity * 0.08) *
+      coverageBoost *
+      horizonBoost,
+    baseFade * (1 - atmosphere * 0.16)
+  );
 };
 
-export const drawAtmosphere = (ctx, viewport, config, elapsed) => {
-  if (!config.atmosphereEnabled) {
-    return;
+const ensureAtmosphereCache = (cache, ctx, viewport) => {
+  if (cache.width === viewport.width && cache.height === viewport.height) {
+    return cache;
   }
 
-  const pulse = sampleAtmospherePulse({ elapsed, config });
-  const hazeAlpha = 0.18 * config.atmosphereStrength * config.atmosphereGlow * pulse;
   const horizonY = viewport.height * 0.28;
-  const bottomY = viewport.height;
-
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-
-  const haze = ctx.createLinearGradient(0, horizonY, 0, bottomY);
-  haze.addColorStop(0, `rgba(126, 170, 255, ${0.01 * hazeAlpha})`);
-  haze.addColorStop(0.45, `rgba(52, 92, 182, ${0.09 * hazeAlpha})`);
-  haze.addColorStop(1, `rgba(10, 18, 38, ${0.28 * hazeAlpha})`);
-  ctx.fillStyle = haze;
-  ctx.fillRect(0, horizonY, viewport.width, bottomY - horizonY);
+  const haze = ctx.createLinearGradient(0, horizonY, 0, viewport.height);
+  haze.addColorStop(0, "rgba(126, 170, 255, 0.01)");
+  haze.addColorStop(0.45, "rgba(52, 92, 182, 0.09)");
+  haze.addColorStop(1, "rgba(10, 18, 38, 0.28)");
 
   const glow = ctx.createRadialGradient(
     viewport.cx,
@@ -76,10 +113,44 @@ export const drawAtmosphere = (ctx, viewport, config, elapsed) => {
     viewport.height * 0.34,
     viewport.width * 0.82
   );
-  glow.addColorStop(0, `rgba(124, 166, 255, ${0.05 * hazeAlpha})`);
-  glow.addColorStop(0.35, `rgba(68, 108, 198, ${0.08 * hazeAlpha})`);
+  glow.addColorStop(0, "rgba(124, 166, 255, 0.05)");
+  glow.addColorStop(0.35, "rgba(68, 108, 198, 0.08)");
   glow.addColorStop(1, "rgba(0, 0, 0, 0)");
-  ctx.fillStyle = glow;
+
+  cache.width = viewport.width;
+  cache.height = viewport.height;
+  cache.horizonY = horizonY;
+  cache.haze = haze;
+  cache.glow = glow;
+  return cache;
+};
+
+export const drawAtmosphere = (
+  ctx,
+  viewport,
+  config,
+  elapsed,
+  cache = createAtmosphereCache()
+) => {
+  if (!config.atmosphereEnabled) {
+    return;
+  }
+
+  const pulse = sampleAtmospherePulse({ elapsed, config });
+  const hazeAlpha = 0.18 * config.atmosphereStrength * config.atmosphereGlow * pulse;
+  const atmosphereCache = ensureAtmosphereCache(cache, ctx, viewport);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = hazeAlpha;
+  ctx.fillStyle = atmosphereCache.haze;
+  ctx.fillRect(
+    0,
+    atmosphereCache.horizonY,
+    viewport.width,
+    viewport.height - atmosphereCache.horizonY
+  );
+  ctx.fillStyle = atmosphereCache.glow;
   ctx.fillRect(0, 0, viewport.width, viewport.height);
 
   ctx.restore();
