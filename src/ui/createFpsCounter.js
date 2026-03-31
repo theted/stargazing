@@ -16,7 +16,7 @@ export const createFpsCounter = (sky) => {
     window.setTimeout(update, 250);
   };
 
-  update();
+  window.requestAnimationFrame(update);
 
   return counter;
 };

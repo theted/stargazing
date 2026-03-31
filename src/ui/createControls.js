@@ -19,6 +19,25 @@ const formatValue = (value, format) => {
   return String(value);
 };
 
+const getStepPrecision = (step) => {
+  const text = String(step);
+  return text.includes(".") ? text.split(".")[1].length : 0;
+};
+
+const quantizeToStep = (value, min, step) => {
+  const precision = getStepPrecision(step);
+  const quantized = min + Math.round((value - min) / step) * step;
+  return Number(quantized.toFixed(precision));
+};
+
+const randomizeSliderValue = (slider) => {
+  const rangeMin = slider.randomMin ?? slider.min;
+  const rangeMax = slider.randomMax ?? slider.max;
+  const biasedUnit = (Math.random() + Math.random()) * 0.5;
+  const raw = rangeMin + (rangeMax - rangeMin) * biasedUnit;
+  return quantizeToStep(raw, slider.min, slider.step);
+};
+
 const scheduleApply = (applyConfig, persistConfig) => {
   let pending = false;
 
@@ -147,6 +166,27 @@ const syncSelectValue = (controls, key, value) => {
   if (control) {
     control.select.value = value;
   }
+};
+
+const syncSliderControl = (controls, key, value) => {
+  const control = controls.get(key);
+
+  if (!control?.input || control.input.type !== "range") {
+    return;
+  }
+
+  control.input.value = String(value);
+  control.value.textContent = formatValue(value, control.format);
+};
+
+const syncToggleControl = (controls, key, value) => {
+  const control = controls.get(key);
+
+  if (!control?.input || control.input.type !== "checkbox") {
+    return;
+  }
+
+  control.input.checked = value;
 };
 
 const syncStarBounds = (controls, config, changedKey, nextValue) => {
@@ -457,6 +497,7 @@ export const createControls = (sky) => {
       step: 1,
     },
   ];
+  const sliderByKey = new Map(sliders.map((slider) => [slider.key, slider]));
 
   const toggleRows = [
     { key: "sizeVariationEnabled", label: "Enable size variation" },
@@ -504,6 +545,7 @@ export const createControls = (sky) => {
   form.insertBefore(presetControl.row, form.firstChild);
 
   toggleRows.forEach((toggleRow) => {
+    controls.set(toggleRow.input.dataset.key, toggleRow);
     form.append(toggleRow.row);
   });
 
@@ -535,7 +577,69 @@ export const createControls = (sky) => {
     window.location.reload();
   });
 
-  form.append(createButtonRow([copyButton, resetButton]));
+  const randomizeButton = document.createElement("button");
+  randomizeButton.type = "button";
+  randomizeButton.className = "control-button control-button--ghost";
+  randomizeButton.textContent = "Randomize";
+  randomizeButton.addEventListener("click", () => {
+    const preset =
+      CAMERA_PRESET_KEYS[Math.floor(Math.random() * CAMERA_PRESET_KEYS.length)];
+
+    applyCameraPreset(sky.config, preset);
+    syncSelectValue(controls, "cameraPreset", preset);
+    syncCameraInputs(controls, sky.config);
+
+    sliders.forEach((slider) => {
+      if (
+        slider.key === "observerLatitude" ||
+        slider.key === "lookAzimuth" ||
+        slider.key === "lookAltitude" ||
+        slider.key === "lookRoll"
+      ) {
+        return;
+      }
+
+      const nextValue = randomizeSliderValue(slider);
+      sky.config[slider.key] = nextValue;
+      syncSliderControl(controls, slider.key, nextValue);
+    });
+
+    const maxStarsSlider = sliderByKey.get("maxStars");
+    const minStarsSlider = sliderByKey.get("minStars");
+    const boundedMinStars = quantizeToStep(
+      Math.min(
+        sky.config.maxStars,
+        minStarsSlider.min +
+          Math.random() * Math.max(minStarsSlider.step, sky.config.maxStars * 0.82)
+      ),
+      minStarsSlider.min,
+      minStarsSlider.step
+    );
+
+    sky.config.maxStars = Math.max(sky.config.maxStars, maxStarsSlider.min);
+    sky.config.minStars = Math.min(boundedMinStars, sky.config.maxStars);
+    syncSliderControl(controls, "maxStars", sky.config.maxStars);
+    syncSliderControl(controls, "minStars", sky.config.minStars);
+
+    [
+      ["sizeVariationEnabled", Math.random() > 0.1],
+      ["timelapseEnabled", Math.random() > 0.08],
+      ["atmosphereEnabled", Math.random() > 0.15],
+      ["gravityEnabled", Math.random() > 0.22],
+      ["meteorsEnabled", Math.random() > 0.18],
+    ].forEach(([key, value]) => {
+      sky.config[key] = value;
+      syncToggleControl(controls, key, value);
+    });
+
+    applyAndPersist();
+    randomizeButton.textContent = "Randomized";
+    window.setTimeout(() => {
+      randomizeButton.textContent = "Randomize";
+    }, 1200);
+  });
+
+  form.append(createButtonRow([randomizeButton, copyButton, resetButton]));
 
   header.append(title, toggleButton);
   panel.append(header, description, notice, form);
