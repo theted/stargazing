@@ -35,6 +35,7 @@ export const SKY_CONFIG = {
   bandSpread: 0.28,
   bandPhase: 0.85,
   starSpread: 1,
+  screenFill: 1.1,
   atmosphereEnabled: true,
   atmosphereStrength: 1.02,
   atmosphereGlow: 0.72,

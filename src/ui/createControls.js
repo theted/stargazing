@@ -476,6 +476,14 @@ export const createControls = (sky) => {
       format: (value) => value.toFixed(2),
     },
     {
+      key: "screenFill",
+      label: "Screen fill",
+      min: 0.8,
+      max: 1.8,
+      step: 0.01,
+      format: (value) => value.toFixed(2),
+    },
+    {
       key: "screenCoverageBoost",
       label: "Coverage boost",
       min: 0,

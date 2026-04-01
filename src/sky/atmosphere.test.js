@@ -56,6 +56,26 @@ describe("atmosphere warp", () => {
     expect(warped.scale).toBeGreaterThan(projection.scale);
   });
 
+  it("supports a high-level screen fill push without requiring other warp effects", () => {
+    const warped = warpSkyProjection({
+      projection,
+      direction: { x: 0.32, y: 0.54, z: 0.48 },
+      viewX: 0.26,
+      viewY: 0.12,
+      viewZ: 0.78,
+      viewport,
+      config: {
+        atmosphereEnabled: false,
+        gravityEnabled: false,
+        screenFill: 1.2,
+      },
+    });
+
+    expect(warped.x).toBeGreaterThan(projection.x);
+    expect(warped.y).toBeLessThan(projection.y);
+    expect(warped.scale).toBeGreaterThan(projection.scale);
+  });
+
   it("defaults optional magnification strengths to zero without producing NaN values", () => {
     const warped = warpSkyProjection({
       projection,

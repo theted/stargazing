@@ -38,6 +38,7 @@ export const warpSkyProjection = ({
     fade: 0,
   },
 }) => {
+  const fillStrength = config.screenFill ?? 1;
   const coverageStrength = config.screenCoverageBoost ?? 0;
   const edgeStrength = config.edgeMagnification ?? 0;
   const horizonStrength = config.horizonMagnification ?? 0;
@@ -46,8 +47,11 @@ export const warpSkyProjection = ({
   const baseY = projection?.y ?? projectionY;
   const baseScale = projection?.scale ?? projectionScale;
   const baseFade = projection?.fade ?? projectionFade;
+  const filledX = viewport.cx + (baseX - viewport.cx) * fillStrength;
+  const filledY = viewport.cy + (baseY - viewport.cy) * fillStrength;
 
   if (
+    fillStrength === 1 &&
     !config.atmosphereEnabled &&
     !config.gravityEnabled &&
     coverageStrength <= 0 &&
@@ -57,9 +61,9 @@ export const warpSkyProjection = ({
     return assignProjection(
       target,
       baseVisible,
-      baseX,
-      baseY,
-      baseScale,
+      filledX,
+      filledY,
+      baseScale * lerp(1, fillStrength, 0.18),
       baseFade
     );
   }
@@ -83,10 +87,11 @@ export const warpSkyProjection = ({
     target,
     baseVisible,
     viewport.cx +
-      (baseX - viewport.cx) * centerPull * coverageBoost * edgeBoost +
+      (filledX - viewport.cx) * centerPull * coverageBoost * edgeBoost +
       shimmer * 0.5,
-    baseY + lift - gravity * viewport.height * 0.012 * horizonBoost,
+    filledY + lift - gravity * viewport.height * 0.012 * horizonBoost,
     baseScale *
+      lerp(1, fillStrength, 0.18) *
       (1 + atmosphere * 0.18 + gravity * 0.08) *
       coverageBoost *
       horizonBoost,
