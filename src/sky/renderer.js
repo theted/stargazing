@@ -47,7 +47,7 @@ const drawDiffractionSpikes = (ctx, x, y, brightness, coreRadius, glowScale, col
   }
 };
 
-const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation }) => {
+const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation, alphaScale = 1 }) => {
   const twinkleEnabled = config.twinkleEnabled !== false;
   const spikesEnabled = config.diffractionSpikesEnabled !== false;
 
@@ -74,7 +74,7 @@ const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timel
     }
 
     const twinkle = twinkleEnabled ? star.twinkleValue : 1;
-    const alpha = star.brightness * current.fade * twinkle;
+    const alpha = star.brightness * current.fade * twinkle * alphaScale;
     if (alpha <= MIN_VISIBLE_ALPHA) continue;
 
     const coreRadius = star.size * current.scale;
@@ -157,15 +157,20 @@ export const drawSkyFrame = ({
     trailCtx.fillRect(0, 0, viewport.width, viewport.height);
     trailCtx.globalAlpha = 1;
 
+    // Auto-exposure: scale per-star alpha proportional to fadeAlpha so the
+    // steady-state buffer brightness (alphaScale / fadeAlpha) stays constant
+    // regardless of trail length. trailIntensity acts as a linear brightness gain.
+    const alphaScale = fadeAlpha * (config.trailIntensity ?? 0.85) * 14;
+
     // Accumulate nebulae + stars into the buffer
     if (nebulae?.length) {
-      drawNebulae({ ctx: trailCtx, nebulae, rotation, derived, viewport, config });
+      drawNebulae({ ctx: trailCtx, nebulae, rotation, derived, viewport, config, alphaScale });
     }
-    drawStars(trailCtx, starArgs);
+    drawStars(trailCtx, { ...starArgs, alphaScale });
 
     // Composite the accumulated buffer onto the main canvas
     ctx.save();
-    ctx.globalAlpha = config.trailIntensity ?? 0.85;
+    ctx.globalAlpha = 1;
     ctx.drawImage(trailCtx.canvas, 0, 0, viewport.width, viewport.height);
     ctx.restore();
   } else {

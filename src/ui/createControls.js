@@ -793,6 +793,25 @@ export const createControls = (sky) => {
 
   form.append(createButtonRow([seedButton, randomizeButton, copyButton, resetButton]));
 
+  // Live two-way sync for controls that can change outside of user input
+  // (camera drag, scroll-to-zoom, guided tour). Runs each rAF but only
+  // touches the DOM when a value has actually changed.
+  const liveSyncKeys = ["lookAzimuth", "lookAltitude", "fieldOfView"];
+  const lastLiveSyncValues = Object.fromEntries(liveSyncKeys.map((k) => [k, sky.config[k]]));
+
+  let liveSyncFrame = 0;
+  const runLiveSync = () => {
+    for (const key of liveSyncKeys) {
+      const current = sky.config[key];
+      if (Math.abs(current - lastLiveSyncValues[key]) > 0.005) {
+        syncSliderControl(controls, key, current);
+        lastLiveSyncValues[key] = current;
+      }
+    }
+    liveSyncFrame = window.requestAnimationFrame(runLiveSync);
+  };
+  liveSyncFrame = window.requestAnimationFrame(runLiveSync);
+
   header.append(title, toggleButton);
   panel.append(header, description, notice, form);
   syncCollapsedState();

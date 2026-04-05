@@ -78,10 +78,10 @@ export const createNebulae = () =>
 const dirScratch = createDirectionTarget();
 const projScratch = createProjectionTarget();
 
-export const drawNebulae = ({ ctx, nebulae, rotation, derived, viewport, config }) => {
+export const drawNebulae = ({ ctx, nebulae, rotation, derived, viewport, config, alphaScale = 1 }) => {
   if (config.nebulaEnabled === false) return;
 
-  const baseAlpha = Math.min(1, config.atmosphereGlow ?? 0.72);
+  const baseAlpha = Math.min(1, config.atmosphereGlow ?? 0.72) * alphaScale;
 
   ctx.save();
   ctx.globalCompositeOperation = "screen";
