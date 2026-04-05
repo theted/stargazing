@@ -133,9 +133,57 @@ At runtime, the app instance is exposed as `window.skyDemo` with:
 
 The live control panel also saves to `localStorage` automatically, so the next reload starts with the same values. Use the reset button in the panel to clear the stored settings. The panel can be collapsed when you want an unobstructed look at the sky, many slider ranges are intentionally broad enough for stress-testing and extreme tuning passes, and the randomizer now supports explicit seeds so you can keep or share a generated look.
 
-## Embedding
+## Embed Build
 
-If you want the effect in another project, import the sky bootstrap and mount it on a canvas:
+`npm run build:embed` compiles a self-contained, minified IIFE at `dist/embed/sky.js` — no controls, no UI, no config storage. Drop it into any page with a single `<script>` tag:
+
+```html
+<!-- option A: existing canvas -->
+<canvas class="sky"></canvas>
+<script src="sky.js"></script>
+
+<!-- option B: no canvas — the script creates and prepends one -->
+<script src="sky.js"></script>
+```
+
+The script injects its own minimal canvas CSS and exposes `window.sky` for programmatic control (`window.sky.dispose()`, `window.sky.config`, etc.).
+
+### Customising the config
+
+Edit `embed-config.json` before running `build:embed`. Any key you set overrides the default; keys you omit keep their defaults.
+
+To capture your current browser session as the embed config, open DevTools on the dev server and run:
+
+```js
+copy(JSON.stringify(window.skyDemo.config, null, 2))
+```
+
+Paste the result into `embed-config.json`, then run:
+
+```bash
+npm run build:embed
+```
+
+### Tree-shaking disabled features
+
+Setting a feature flag to `false` in `embed-config.json` removes that module entirely from the output — its data and draw code are never bundled:
+
+| Flag | Module eliminated |
+|---|---|
+| `"nebulaEnabled": false` | nebula data + draw loop |
+| `"meteorsEnabled": false` | meteor system + draw loop |
+| `"atmosphereEnabled": false` | atmosphere cache + warp math |
+
+**Bundle sizes (gzip):**
+
+| Config | Size |
+|---|---|
+| All features on (default) | ~8 KB |
+| Nebulae + meteors + atmosphere off | ~5.5 KB |
+
+### Embedding via JS modules (dev / bundled projects)
+
+If you want the effect inside your own bundler pipeline, import directly:
 
 ```js
 import { SKY_CONFIG } from "./src/sky/config.js";
@@ -144,7 +192,7 @@ import { createSky } from "./src/sky/createSky.js";
 const sky = createSky(document.querySelector(".sky"), SKY_CONFIG);
 ```
 
-If you want the example controls too, mount `src/main.js` or wire `src/ui/createControls.js` next to the canvas. The controls are optional and the core sky renderer is separate.
+If you want the live controls too, mount `src/main.js` or wire `src/ui/createControls.js` next to the canvas.
 
 ## Project Skills
 
