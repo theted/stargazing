@@ -1,55 +1,66 @@
 import { TAU } from "./config.js";
 import { createAtmosphereCache, drawAtmosphere } from "./atmosphere.js";
 import { drawMeteors, updateMeteorSystem } from "./meteors.js";
+import { drawNebulae } from "./nebulae.js";
 import { sampleStarTwinkle } from "./motion.js";
+import { lerp, smoothstep } from "./math.js";
 import { createDirectionTarget, createProjectionTarget, projectStar } from "./projection.js";
 
 const MIN_VISIBLE_ALPHA = 0.015;
-const MIN_TRAIL_ALPHA = 0.02;
-const MIN_TRAIL_RADIUS = 0.55;
 const MIN_GLOW_ALPHA = 0.05;
 const MIN_GLOW_RADIUS = 0.9;
 const PIXEL_CORE_RADIUS = 0.85;
+const SPIKE_BRIGHTNESS_THRESHOLD = 0.52;
+
+// Frame-rate-independent trail decay constant: 95% fades after `trailLength` real seconds
+const TRAIL_DECAY_K = Math.log(20);
 
 export const createRenderScratch = () => ({
   atmosphere: createAtmosphereCache(),
   currentDirection: createDirectionTarget(),
   currentProjection: createProjectionTarget(),
-  trailDirection: createDirectionTarget(),
-  trailProjection: createProjectionTarget(),
 });
 
-export const drawSkyFrame = ({
-  ctx,
-  stars,
-  config,
-  derived,
-  meteorSystem,
-  scratch,
-  skyDrift,
-  viewport,
-  elapsed,
-  delta,
-}) => {
-  ctx.clearRect(0, 0, viewport.width, viewport.height);
+const drawDiffractionSpikes = (ctx, x, y, brightness, coreRadius, glowScale, colorCss, alpha) => {
+  const spikeFraction = smoothstep(SPIKE_BRIGHTNESS_THRESHOLD, 1.0, brightness);
+  const spikeLen = coreRadius * glowScale * lerp(1.2, 3.2, spikeFraction);
+  const spikeAlpha = alpha * spikeFraction * 0.38;
+  const spikeWidth = Math.max(0.22, coreRadius * 0.11);
 
-  const time = elapsed * config.motionScale;
-  const timelapseFactor = config.timelapseEnabled ? config.timelapseIntensity : 0.45;
-  const rotation = time * timelapseFactor * config.rotationSpeed + skyDrift;
+  ctx.globalAlpha = spikeAlpha;
+  ctx.lineWidth = spikeWidth;
+  ctx.strokeStyle = colorCss;
 
+  ctx.beginPath();
+  ctx.moveTo(x - spikeLen, y);
+  ctx.lineTo(x + spikeLen, y);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x, y - spikeLen);
+  ctx.lineTo(x, y + spikeLen);
+  ctx.stroke();
+
+  if (spikeFraction > 0.65) {
+    const diagAlpha = spikeAlpha * 0.55;
+    const d = spikeLen * 0.62;
+    ctx.globalAlpha = diagAlpha;
+    ctx.beginPath();
+    ctx.moveTo(x - d, y - d);
+    ctx.lineTo(x + d, y + d);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + d, y - d);
+    ctx.lineTo(x - d, y + d);
+    ctx.stroke();
+  }
+};
+
+// Draws nebulae + stars into any canvas context (main or accumulation buffer)
+const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation }) => {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.lineCap = "round";
-
-  drawAtmosphere(ctx, viewport, config, elapsed, scratch.atmosphere);
-  updateMeteorSystem({
-    system: meteorSystem,
-    viewport,
-    config,
-    delta,
-  });
-
-  const twinkleTick = Math.floor(time * timelapseFactor * 18);
 
   for (const star of stars) {
     const current = projectStar({
@@ -62,61 +73,42 @@ export const drawSkyFrame = ({
       target: scratch.currentProjection,
     });
 
-    if (!current.visible) {
-      continue;
+    if (!current.visible) continue;
+
+    if (config.twinkleEnabled !== false) {
+      if (star.twinkleTick !== twinkleTick) {
+        star.twinkleValue = sampleStarTwinkle({ time, star, config, timelapseFactor });
+        star.twinkleTick = twinkleTick;
+      }
     }
 
-    if (star.twinkleTick !== twinkleTick) {
-      star.twinkleValue = sampleStarTwinkle({
-        time,
-        star,
-        config,
-        timelapseFactor,
-      });
-      star.twinkleTick = twinkleTick;
-    }
+    const twinkle = config.twinkleEnabled !== false ? star.twinkleValue : 1;
+    const alpha = star.brightness * current.fade * twinkle;
+    if (alpha <= MIN_VISIBLE_ALPHA) continue;
 
-    const alpha = star.brightness * current.fade * star.twinkleValue;
-    if (alpha <= MIN_VISIBLE_ALPHA) {
-      continue;
-    }
-
-    const lineAlpha = alpha * 0.18;
     const coreRadius = star.size * current.scale;
     const glowRadius = coreRadius * config.glowScale;
-    const shouldDrawTrail = lineAlpha > MIN_TRAIL_ALPHA && coreRadius > MIN_TRAIL_RADIUS;
     const shouldDrawGlow = alpha > MIN_GLOW_ALPHA && glowRadius > MIN_GLOW_RADIUS;
 
     ctx.strokeStyle = star.colorCss;
     ctx.fillStyle = star.colorCss;
-
-    if (shouldDrawTrail) {
-      const trail = projectStar({
-        star,
-        rotation,
-        offset: -derived.trailAngle * star.trailScale,
-        derived,
-        viewport,
-        config,
-        directionTarget: scratch.trailDirection,
-        target: scratch.trailProjection,
-      });
-
-      if (trail.visible) {
-        ctx.globalAlpha = lineAlpha;
-        ctx.lineWidth = Math.max(0.35, star.size * 0.55 * current.scale);
-        ctx.beginPath();
-        ctx.moveTo(trail.x, trail.y);
-        ctx.lineTo(current.x, current.y);
-        ctx.stroke();
-      }
-    }
 
     if (shouldDrawGlow) {
       ctx.globalAlpha = alpha * 0.08;
       ctx.beginPath();
       ctx.arc(current.x, current.y, glowRadius, 0, TAU);
       ctx.fill();
+
+      if (star.brightness > 0.62) {
+        ctx.globalAlpha = alpha * 0.025;
+        ctx.beginPath();
+        ctx.arc(current.x, current.y, glowRadius * 2.8, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    if (config.diffractionSpikesEnabled !== false && star.brightness > SPIKE_BRIGHTNESS_THRESHOLD && coreRadius > 0.85) {
+      drawDiffractionSpikes(ctx, current.x, current.y, star.brightness, coreRadius, config.glowScale, star.colorCss, alpha);
     }
 
     ctx.globalAlpha = alpha;
@@ -137,11 +129,70 @@ export const drawSkyFrame = ({
     ctx.fill();
   }
 
-  ctx.globalAlpha = 1;
-  drawMeteors({
-    ctx,
-    system: meteorSystem,
-  });
+  ctx.restore();
+};
 
+export const drawSkyFrame = ({
+  ctx,
+  stars,
+  nebulae,
+  config,
+  derived,
+  meteorSystem,
+  scratch,
+  trailCtx,
+  skyDrift,
+  viewport,
+  elapsed,
+  delta,
+}) => {
+  ctx.clearRect(0, 0, viewport.width, viewport.height);
+
+  const time = elapsed * config.motionScale;
+  const timelapseFactor = config.timelapseEnabled ? config.timelapseIntensity : 0.45;
+  const rotation = time * timelapseFactor * config.rotationSpeed + skyDrift;
+  const twinkleTick = Math.floor(time * timelapseFactor * 18);
+  const starArgs = { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation };
+
+  // Atmosphere is always drawn fresh on the main canvas
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  drawAtmosphere(ctx, viewport, config, elapsed, scratch.atmosphere);
+  ctx.restore();
+
+  updateMeteorSystem({ system: meteorSystem, viewport, config, delta });
+
+  if (trailCtx && config.trailsEnabled) {
+    // ── Accumulation buffer mode ─────────────────────────────────────────
+    // Fade the opaque buffer toward deep-space black (frame-rate independent)
+    const fadeAlpha = 1 - Math.exp(-delta * TRAIL_DECAY_K / Math.max(0.1, config.trailLength));
+    trailCtx.globalAlpha = Math.min(1, fadeAlpha);
+    trailCtx.fillStyle = "#030509";
+    trailCtx.fillRect(0, 0, viewport.width, viewport.height);
+    trailCtx.globalAlpha = 1;
+
+    // Accumulate nebulae + stars into the buffer
+    if (nebulae?.length) {
+      drawNebulae({ ctx: trailCtx, nebulae, rotation, derived, viewport, config });
+    }
+    drawStars(trailCtx, starArgs);
+
+    // Composite the accumulated buffer onto the main canvas
+    ctx.save();
+    ctx.globalAlpha = config.trailIntensity ?? 0.85;
+    ctx.drawImage(trailCtx.canvas, 0, 0, viewport.width, viewport.height);
+    ctx.restore();
+  } else {
+    // ── Standard mode (no trails) ────────────────────────────────────────
+    if (nebulae?.length) {
+      drawNebulae({ ctx, nebulae, rotation, derived, viewport, config });
+    }
+    drawStars(ctx, starArgs);
+  }
+
+  ctx.save();
+  ctx.globalAlpha = 1;
+  drawMeteors({ ctx, system: meteorSystem });
   ctx.restore();
 };

@@ -452,6 +452,22 @@ export const createControls = (sky) => {
       format: (value) => value.toFixed(1),
     },
     {
+      key: "trailLength",
+      label: "Trail length",
+      min: 0.5,
+      max: 60,
+      step: 0.5,
+      format: (value) => `${value.toFixed(1)} s`,
+    },
+    {
+      key: "trailIntensity",
+      label: "Trail intensity",
+      min: 0.1,
+      max: 1.0,
+      step: 0.05,
+      format: "percent",
+    },
+    {
       key: "backgroundParallax",
       label: "Background parallax",
       min: 0,
@@ -600,6 +616,9 @@ export const createControls = (sky) => {
     },
   ];
   const toggleRows = [
+    { key: "guidedTourEnabled", label: "Guided tour" },
+    { key: "trailsEnabled", label: "Enable trails" },
+    { key: "twinkleEnabled", label: "Enable twinkle" },
     { key: "sizeVariationEnabled", label: "Enable size variation" },
     { key: "timelapseEnabled", label: "Enable timelapse" },
     { key: "atmosphereEnabled", label: "Enable atmosphere" },

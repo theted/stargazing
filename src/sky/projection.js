@@ -55,13 +55,23 @@ export const createDerivedScene = (config) => ({
   }),
 });
 
-export const createViewport = (width, height, fieldOfView) => ({
-  width,
-  height,
-  cx: width * 0.5,
-  cy: height * 0.5,
-  focal: (Math.min(width, height) * 0.5) / Math.tan((fieldOfView * DEG) * 0.5),
-});
+export const createViewport = (width, height, fieldOfView, fisheyeEnabled = false) => {
+  const fovHalfRad = fieldOfView * DEG * 0.5;
+  const R = Math.min(width, height) * 0.5;
+  // For fisheye, anchor the FOV to the screen diagonal so stars fill all four
+  // corners instead of being cropped to an inscribed circle.
+  const diagonalHalf = Math.hypot(width * 0.5, height * 0.5);
+  return {
+    width,
+    height,
+    cx: width * 0.5,
+    cy: height * 0.5,
+    focal: fisheyeEnabled ? diagonalHalf / fovHalfRad : R / Math.tan(fovHalfRad),
+    fovHalfRad,
+    cosHalfFov: Math.cos(fovHalfRad),
+    fisheyeEnabled,
+  };
+};
 
 export const equatorialToHorizontal = ({
   star,
@@ -94,6 +104,53 @@ export const projectDirection = ({
   const viewY = dot(direction, derived.camera.up);
   const viewZ = dot(direction, derived.camera.forward);
 
+  if (viewport.fisheyeEnabled) {
+    // Equidistant fisheye: r = focal * θ, where θ is angle from forward axis
+    // Stars beyond FOV/2 are outside the circular view
+    if (viewZ < viewport.cosHalfFov - 0.002) {
+      return hideProjection(target);
+    }
+
+    const cosTheta = Math.min(1, viewZ);
+    const theta = Math.acos(cosTheta);
+    const sinTheta = Math.sqrt(Math.max(0, 1 - cosTheta * cosTheta));
+    const r = theta * viewport.focal;
+
+    const sx = sinTheta > 0.0001
+      ? viewport.cx + (viewX / sinTheta) * r
+      : viewport.cx;
+    const sy = sinTheta > 0.0001
+      ? viewport.cy - (viewY / sinTheta) * r
+      : viewport.cy;
+
+    // Rectangular screen bounds (with a small margin)
+    if (sx < -10 || sx > viewport.width + 10 || sy < -10 || sy > viewport.height + 10) {
+      return hideProjection(target);
+    }
+
+    // Fade toward the screen edges (Chebyshev distance from center, normalized)
+    const edgeX = Math.abs(sx - viewport.cx) / (viewport.width * 0.5);
+    const edgeY = Math.abs(sy - viewport.cy) / (viewport.height * 0.5);
+    const edgeDist = Math.max(edgeX, edgeY);
+
+    const horizonFade = smoothstep(config.horizonFadeStart, config.horizonFadeEnd, direction.y);
+    const edgeFade = 1 - smoothstep(0.92, 1.04, edgeDist);
+    const scale = lerp(0.68, 1.22, smoothstep(0, 1, viewZ));
+    const fade = horizonFade * edgeFade;
+
+    if (fade <= 0.01) {
+      return hideProjection(target);
+    }
+
+    target.visible = true;
+    target.x = sx;
+    target.y = sy;
+    target.scale = scale;
+    target.fade = fade;
+    return target;
+  }
+
+  // Perspective projection (original path)
   if (viewZ <= config.edgeFadeStart) {
     return hideProjection(target);
   }
