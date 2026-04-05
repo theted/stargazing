@@ -5,9 +5,10 @@ import { createNebulae } from "./nebulae.js";
 import { copySkyConfigSourceToClipboard, formatSkyConfigSource } from "./config-source.js";
 import { createMeteorSystem, resetMeteorSystem } from "./meteors.js";
 import { sampleSkyDriftVelocity } from "./motion.js";
+import { clamp, lerp, smoothstep } from "./math.js";
 
-const clampAltitude = (alt) => Math.max(5, Math.min(89, alt));
-const clampFov = (fov) => Math.max(15, Math.min(170, fov));
+const clampAltitude = (alt) => clamp(alt, 5, 89);
+const clampFov = (fov) => clamp(fov, 15, 170);
 const MAX_CAMERA_VELOCITY = 200; // deg/s
 
 export const createSky = (canvas, config) => {
@@ -106,10 +107,8 @@ export const createSky = (canvas, config) => {
   const getSensitivity = () =>
     (config.fieldOfView * 1.5) / Math.min(state.width, state.height);
 
-  const isDragEnabled = () => config.guidedTourEnabled !== true;
-
   const beginDrag = (x, y) => {
-    if (!isDragEnabled()) return;
+    if (config.guidedTourEnabled) return;
     drag.active = true;
     drag.startX = x;
     drag.startY = y;
@@ -140,13 +139,13 @@ export const createSky = (canvas, config) => {
       const ddy = y - drag.prevY;
       const rawVelAz = (-ddx * sensitivity) / dt;
       const rawVelAlt = (ddy * sensitivity) / dt;
-      drag.velAz = Math.max(-MAX_CAMERA_VELOCITY, Math.min(MAX_CAMERA_VELOCITY, rawVelAz));
-      drag.velAlt = Math.max(-MAX_CAMERA_VELOCITY, Math.min(MAX_CAMERA_VELOCITY, rawVelAlt));
+      drag.velAz = clamp(rawVelAz, -MAX_CAMERA_VELOCITY, MAX_CAMERA_VELOCITY);
+      drag.velAlt = clamp(rawVelAlt, -MAX_CAMERA_VELOCITY, MAX_CAMERA_VELOCITY);
     }
 
     drag.prevX = x;
     drag.prevY = y;
-    drag.prevTime = performance.now();
+    drag.prevTime = now;
 
     syncDerived();
   };
@@ -240,12 +239,10 @@ export const createSky = (canvas, config) => {
 
     const from = TOUR_WAYPOINTS[tourState.waypointIndex];
     const to = TOUR_WAYPOINTS[(tourState.waypointIndex + 1) % TOUR_WAYPOINTS.length];
+    const t = smoothstep(0, 1, tourState.progress);
 
-    // Smooth step for ease-in-out between waypoints
-    const t = tourState.progress * tourState.progress * (3 - 2 * tourState.progress);
-
-    config.lookAzimuth = from[0] + (to[0] - from[0]) * t;
-    config.lookAltitude = clampAltitude(from[1] + (to[1] - from[1]) * t);
+    config.lookAzimuth = lerp(from[0], to[0], t);
+    config.lookAltitude = clampAltitude(lerp(from[1], to[1], t));
     syncDerived();
   };
 

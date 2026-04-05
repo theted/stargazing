@@ -31,33 +31,26 @@ const drawDiffractionSpikes = (ctx, x, y, brightness, coreRadius, glowScale, col
   ctx.lineWidth = spikeWidth;
   ctx.strokeStyle = colorCss;
 
+  // Horizontal + vertical cross as a single stroke call
   ctx.beginPath();
-  ctx.moveTo(x - spikeLen, y);
-  ctx.lineTo(x + spikeLen, y);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(x, y - spikeLen);
-  ctx.lineTo(x, y + spikeLen);
+  ctx.moveTo(x - spikeLen, y); ctx.lineTo(x + spikeLen, y);
+  ctx.moveTo(x, y - spikeLen); ctx.lineTo(x, y + spikeLen);
   ctx.stroke();
 
   if (spikeFraction > 0.65) {
-    const diagAlpha = spikeAlpha * 0.55;
     const d = spikeLen * 0.62;
-    ctx.globalAlpha = diagAlpha;
+    ctx.globalAlpha = spikeAlpha * 0.55;
     ctx.beginPath();
-    ctx.moveTo(x - d, y - d);
-    ctx.lineTo(x + d, y + d);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x + d, y - d);
-    ctx.lineTo(x - d, y + d);
+    ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d);
+    ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d);
     ctx.stroke();
   }
 };
 
-// Draws nebulae + stars into any canvas context (main or accumulation buffer)
 const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation }) => {
+  const twinkleEnabled = config.twinkleEnabled !== false;
+  const spikesEnabled = config.diffractionSpikesEnabled !== false;
+
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.lineCap = "round";
@@ -75,14 +68,12 @@ const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timel
 
     if (!current.visible) continue;
 
-    if (config.twinkleEnabled !== false) {
-      if (star.twinkleTick !== twinkleTick) {
-        star.twinkleValue = sampleStarTwinkle({ time, star, config, timelapseFactor });
-        star.twinkleTick = twinkleTick;
-      }
+    if (twinkleEnabled && star.twinkleTick !== twinkleTick) {
+      star.twinkleValue = sampleStarTwinkle({ time, star, config, timelapseFactor });
+      star.twinkleTick = twinkleTick;
     }
 
-    const twinkle = config.twinkleEnabled !== false ? star.twinkleValue : 1;
+    const twinkle = twinkleEnabled ? star.twinkleValue : 1;
     const alpha = star.brightness * current.fade * twinkle;
     if (alpha <= MIN_VISIBLE_ALPHA) continue;
 
@@ -107,7 +98,7 @@ const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timel
       }
     }
 
-    if (config.diffractionSpikesEnabled !== false && star.brightness > SPIKE_BRIGHTNESS_THRESHOLD && coreRadius > 0.85) {
+    if (spikesEnabled && star.brightness > SPIKE_BRIGHTNESS_THRESHOLD && coreRadius > 0.85) {
       drawDiffractionSpikes(ctx, current.x, current.y, star.brightness, coreRadius, config.glowScale, star.colorCss, alpha);
     }
 
@@ -154,19 +145,13 @@ export const drawSkyFrame = ({
   const twinkleTick = Math.floor(time * timelapseFactor * 18);
   const starArgs = { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation };
 
-  // Atmosphere is always drawn fresh on the main canvas
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  ctx.lineCap = "round";
   drawAtmosphere(ctx, viewport, config, elapsed, scratch.atmosphere);
-  ctx.restore();
-
   updateMeteorSystem({ system: meteorSystem, viewport, config, delta });
 
   if (trailCtx && config.trailsEnabled) {
-    // ── Accumulation buffer mode ─────────────────────────────────────────
-    // Fade the opaque buffer toward deep-space black (frame-rate independent)
-    const fadeAlpha = 1 - Math.exp(-delta * TRAIL_DECAY_K / Math.max(0.1, config.trailLength));
+    // Fade the opaque buffer toward deep-space black (frame-rate independent exponential decay)
+    const decayRate = TRAIL_DECAY_K / Math.max(0.1, config.trailLength);
+    const fadeAlpha = 1 - Math.exp(-delta * decayRate);
     trailCtx.globalAlpha = Math.min(1, fadeAlpha);
     trailCtx.fillStyle = "#030509";
     trailCtx.fillRect(0, 0, viewport.width, viewport.height);

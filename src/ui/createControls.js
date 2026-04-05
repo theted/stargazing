@@ -277,6 +277,20 @@ export const createControls = (sky) => {
   const applyAndPersist = scheduleApply(sky.applyConfig, persistConfig);
   let collapsed = false;
 
+  // Display toggles — manipulate DOM directly, not stored in sky config
+  const createDisplayToggle = (label, dataset, defaultValue = true) => {
+    document.body.dataset[dataset] = defaultValue ? "visible" : "hidden";
+    const { row } = createRow("control-row control-row--toggle", label);
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = defaultValue;
+    input.addEventListener("change", () => {
+      document.body.dataset[dataset] = input.checked ? "visible" : "hidden";
+    });
+    row.append(input);
+    return row;
+  };
+
   const syncCollapsedState = () => {
     panel.classList.toggle("controls--collapsed", collapsed);
     toggleButton.textContent = collapsed ? "Show" : "Hide";
@@ -373,6 +387,30 @@ export const createControls = (sky) => {
   });
 
   const sliders = [
+    {
+      key: "fieldOfView",
+      label: "Field of view",
+      min: 30,
+      max: 170,
+      step: 1,
+      format: (value) => `${Math.round(value)}°`,
+    },
+    {
+      key: "dprCap",
+      label: "Pixel ratio cap",
+      min: 0.5,
+      max: 3.0,
+      step: 0.1,
+      format: (value) => value.toFixed(1),
+    },
+    {
+      key: "glowScale",
+      label: "Glow scale",
+      min: 1,
+      max: 12,
+      step: 0.25,
+      format: (value) => value.toFixed(2),
+    },
     {
       key: "density",
       label: "Density",
@@ -665,15 +703,20 @@ export const createControls = (sky) => {
     form.append(control.row);
   });
 
+  form.prepend(
+    createDisplayToggle("Show background", "bg"),
+    createDisplayToggle("Show content text", "content"),
+  );
+
   controls.set("scenePreset", scenePresetControl);
-  form.insertBefore(scenePresetControl.row, form.firstChild);
+  form.insertBefore(scenePresetControl.row, form.children[2] ?? null);
   controls.set("cameraPreset", presetControl);
-  form.insertBefore(presetControl.row, form.children[1] ?? null);
+  form.insertBefore(presetControl.row, form.children[3] ?? null);
   controls.set("stageMode", stageModeControl);
-  form.insertBefore(stageModeControl.row, form.children[2] ?? null);
+  form.insertBefore(stageModeControl.row, form.children[4] ?? null);
   controls.set("boxedStageSize", boxedStageSizeControl);
-  form.insertBefore(boxedStageSizeControl.row, form.children[3] ?? null);
-  form.insertBefore(seedControl.row, form.children[4] ?? null);
+  form.insertBefore(boxedStageSizeControl.row, form.children[5] ?? null);
+  form.insertBefore(seedControl.row, form.children[6] ?? null);
 
   syncControlDisabled(controls, "boxedStageSize", sky.getDisplayMode?.() !== "boxed");
 

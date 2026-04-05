@@ -54,6 +54,14 @@ body[data-stage-mode="boxed"] .sky {
     0 0 0 1px rgba(129, 163, 235, 0.05) inset;
 }
 
+body[data-content="hidden"] .content {
+  display: none;
+}
+
+body[data-bg="hidden"] {
+  background: #020408;
+}
+
 .content {
   position: relative;
   z-index: 1;

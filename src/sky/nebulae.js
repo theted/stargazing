@@ -81,6 +81,8 @@ const projScratch = createProjectionTarget();
 export const drawNebulae = ({ ctx, nebulae, rotation, derived, viewport, config }) => {
   if (config.nebulaEnabled === false) return;
 
+  const baseAlpha = Math.min(1, config.atmosphereGlow ?? 0.72);
+
   ctx.save();
   ctx.globalCompositeOperation = "screen";
 
@@ -115,7 +117,7 @@ export const drawNebulae = ({ ctx, nebulae, rotation, derived, viewport, config 
       gradient.addColorStop(i / (stops.length - 1), stops[i]);
     }
 
-    ctx.globalAlpha = proj.fade * Math.min(1, config.atmosphereGlow ?? 0.72);
+    ctx.globalAlpha = proj.fade * baseAlpha;
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(proj.x, proj.y, screenRadius, 0, TAU);
