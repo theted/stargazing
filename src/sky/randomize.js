@@ -13,6 +13,11 @@ const TOGGLE_PROBABILITIES = {
   atmosphereEnabled: 0.84,
   gravityEnabled: 0.72,
   meteorsEnabled: 0.78,
+  auroraEnabled: 0.55,
+  milkyWayEnabled: 0.85,
+  satellitesEnabled: 0.7,
+  cameraDriftEnabled: 0.85,
+  depthParallaxEnabled: 0.85,
 };
 
 const hashSeed = (seedText) => {
@@ -83,7 +88,7 @@ export const applySeededRandomization = ({
   const sliderValues = {};
 
   sliders.forEach((slider) => {
-    if (CAMERA_KEYS.has(slider.key)) {
+    if (CAMERA_KEYS.has(slider.key) || slider.skipRandomize) {
       return;
     }
 

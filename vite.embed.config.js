@@ -26,6 +26,18 @@ const FEATURE_STUBS = [
     module: "atmosphere.js",
     enabled: embedConfig.atmosphereEnabled !== false,
   },
+  {
+    module: "aurora.js",
+    enabled: embedConfig.auroraEnabled !== false,
+  },
+  {
+    module: "milkyway.js",
+    enabled: embedConfig.milkyWayEnabled !== false,
+  },
+  {
+    module: "satellites.js",
+    enabled: embedConfig.satellitesEnabled !== false,
+  },
 ];
 
 // config-source is never needed in a compiled embed (no copy-to-clipboard UI).

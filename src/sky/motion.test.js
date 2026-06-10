@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { sampleAtmospherePulse, sampleSkyDriftVelocity, sampleStarTwinkle } from "./motion.js";
+import {
+  sampleAtmospherePulse,
+  sampleCameraDrift,
+  sampleSkyDriftVelocity,
+  sampleStarTwinkle,
+} from "./motion.js";
 
 const config = {
   backgroundParallax: 0.085,
@@ -48,5 +53,41 @@ describe("sky motion", () => {
     expect(later).toBeGreaterThanOrEqual(1 - config.twinkleAmount * 0.42);
     expect(later).toBeLessThanOrEqual(1 + config.twinkleAmount * 0.12);
     expect(first).not.toBeCloseTo(later, 6);
+  });
+});
+
+describe("camera drift", () => {
+  const driftConfig = {
+    driftSeed: 1.7,
+    cameraDriftAmount: 2.4,
+    cameraDriftSpeed: 1,
+  };
+
+  it("stays within the configured amplitude", () => {
+    for (let elapsed = 0; elapsed < 600; elapsed += 7.3) {
+      const drift = sampleCameraDrift({ elapsed, config: driftConfig });
+
+      expect(Math.abs(drift.azimuth)).toBeLessThanOrEqual(driftConfig.cameraDriftAmount);
+      expect(Math.abs(drift.altitude)).toBeLessThanOrEqual(
+        driftConfig.cameraDriftAmount * 0.55
+      );
+    }
+  });
+
+  it("moves over time", () => {
+    const first = sampleCameraDrift({ elapsed: 0, config: driftConfig });
+    const later = sampleCameraDrift({ elapsed: 120, config: driftConfig });
+
+    expect(first.azimuth).not.toBeCloseTo(later.azimuth, 6);
+  });
+
+  it("is zero when the amount is zero", () => {
+    const drift = sampleCameraDrift({
+      elapsed: 42,
+      config: { ...driftConfig, cameraDriftAmount: 0 },
+    });
+
+    expect(drift.azimuth).toBeCloseTo(0, 12);
+    expect(drift.altitude).toBeCloseTo(0, 12);
   });
 });

@@ -1,10 +1,14 @@
 import { createRenderScratch, drawSkyFrame } from "./renderer.js";
 import { createDerivedScene, createViewport } from "./projection.js";
 import { createStars, getStarCount } from "./stars.js";
+import { createAuroraBands } from "./aurora.js";
+import { createMilkyWay } from "./milkyway.js";
 import { createNebulae } from "./nebulae.js";
 import { copySkyConfigSourceToClipboard, formatSkyConfigSource } from "./config-source.js";
 import { createMeteorSystem, resetMeteorSystem } from "./meteors.js";
-import { sampleSkyDriftVelocity } from "./motion.js";
+import { createSatelliteSystem, resetSatelliteSystem } from "./satellites.js";
+import { createQualityController, updateQualityLevel } from "./quality.js";
+import { sampleCameraDrift, sampleSkyDriftVelocity } from "./motion.js";
 import { clamp, lerp, smoothstep } from "./math.js";
 
 const clampAltitude = (alt) => clamp(alt, 5, 89);
@@ -40,12 +44,17 @@ export const createSky = (canvas, config) => {
     dpr: 1,
     stars: [],
     nebulae: createNebulae(),
+    milkyWay: createMilkyWay(config),
+    auroraBands: createAuroraBands(config),
     viewport: createViewport(1, 1, config.fieldOfView, config.fisheyeEnabled),
     derived: createDerivedScene(config),
     meteorSystem: createMeteorSystem(config),
+    satelliteSystem: createSatelliteSystem(config),
+    quality: createQualityController(),
     scratch: createRenderScratch(),
     animationFrame: 0,
     lastTime: 0,
+    lastDrawAt: 0,
     startTime: performance.now(),
     pauseStartedAt: 0,
     skyDrift: 0,
@@ -83,6 +92,8 @@ export const createSky = (canvas, config) => {
       getStarCount({ width: state.width, height: state.height }, config),
       config
     );
+    state.milkyWay = createMilkyWay(config);
+    state.auroraBands = createAuroraBands(config);
   };
 
   const resize = () => {
@@ -100,6 +111,7 @@ export const createSky = (canvas, config) => {
     syncDerived();
     regenerate();
     resetMeteorSystem(state.meteorSystem, config);
+    resetSatelliteSystem(state.satelliteSystem, config);
     ensureTrailCanvas(state.width, state.height, state.dpr);
   };
 
@@ -248,6 +260,18 @@ export const createSky = (canvas, config) => {
 
   // ─── Animation loop ───────────────────────────────────────────────────────
   const animate = (now) => {
+    state.animationFrame = window.requestAnimationFrame(animate);
+
+    // Optional frame cap for background use — skip frames entirely, so delta
+    // and FPS sampling below only ever see drawn frames.
+    if (config.maxFps > 0) {
+      const frameInterval = 1000 / config.maxFps;
+      if (now - state.lastDrawAt < frameInterval - 0.5) {
+        return;
+      }
+      state.lastDrawAt = now;
+    }
+
     const elapsed = (now - state.startTime) * 0.001;
     const delta = state.lastTime ? (now - state.lastTime) * 0.001 : 0.016;
 
@@ -259,6 +283,7 @@ export const createSky = (canvas, config) => {
       state.fps = state.fpsFrames / state.fpsElapsed;
       state.fpsFrames = 0;
       state.fpsElapsed = 0;
+      updateQualityLevel(state.quality, { fps: state.fps, config });
     }
 
     // Guided tour advances camera autonomously
@@ -279,22 +304,30 @@ export const createSky = (canvas, config) => {
 
     state.skyDrift += sampleSkyDriftVelocity({ elapsed, config }) * delta;
 
+    // Idle camera drift: rebuild the camera basis each frame with small
+    // additive look offsets — the projection shift reads as true parallax.
+    if (config.cameraDriftEnabled && config.cameraDriftAmount > 0) {
+      state.derived = createDerivedScene(config, sampleCameraDrift({ elapsed, config }));
+    }
+
     drawSkyFrame({
       ctx: context,
       stars: state.stars,
       nebulae: state.nebulae,
+      milkyWay: state.milkyWay,
+      auroraBands: state.auroraBands,
       config,
       derived: state.derived,
       meteorSystem: state.meteorSystem,
+      satelliteSystem: state.satelliteSystem,
       scratch: state.scratch,
       trailCtx,
       skyDrift: state.skyDrift,
       viewport: state.viewport,
       elapsed,
       delta: Math.min(delta, 0.1),
+      quality: state.quality.level,
     });
-
-    state.animationFrame = window.requestAnimationFrame(animate);
   };
 
   const handleVisibilityChange = () => {
@@ -330,7 +363,10 @@ export const createSky = (canvas, config) => {
   const getStats = () => ({
     fps: state.fps,
     starCount: state.stars.length,
+    drawnStarCount: Math.round(state.stars.length * state.quality.level),
+    quality: state.quality.level,
     meteorCount: state.meteorSystem.active.length,
+    satelliteCount: state.satelliteSystem.active.length,
     width: state.width,
     height: state.height,
   });

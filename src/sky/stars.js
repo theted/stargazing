@@ -12,8 +12,12 @@ export const getStarCount = ({ width, height }, config) => {
   return Math.max(config.minStars, Math.min(config.maxStars, Math.round(area * config.density)));
 };
 
-export const createStars = (count, config) =>
-  Array.from({ length: count }, () => {
+export const createStars = (count, config) => {
+  // Depth parallax: stars get a per-depth rotation rate so near layers sweep
+  // faster than far ones — a cheap differential-rotation cue that reads as 3D.
+  const parallax = config.depthParallaxEnabled !== false ? config.depthParallax ?? 0 : 0;
+
+  const stars = Array.from({ length: count }, () => {
     const useBand = Math.random() < config.bandWeight;
     const hourOffset = Math.random() * TAU;
     const bandWave = Math.sin(hourOffset * config.bandFrequency + config.bandPhase);
@@ -30,32 +34,36 @@ export const createStars = (count, config) =>
     const sizeCurve = config.sizeVariationEnabled
       ? Math.max(1.5, 4.5 - config.starSizeVariation)
       : 8;
-    const size = lerp(
-      config.baseStarSize,
-      config.maxStarSize,
-      Math.pow(Math.random(), sizeCurve)
-    );
+    const depth = Math.random();
+    const size =
+      lerp(config.baseStarSize, config.maxStarSize, Math.pow(Math.random(), sizeCurve)) *
+      lerp(0.85, 1.1, depth);
     // Spectral classification — biased toward visual variety
     const spectralRoll = Math.random();
     let color;
+    let spriteIndex;
     if (spectralRoll < 0.04) {
       // O/B-class: vivid blue (rare hot giants)
       const t = Math.random();
       color = { r: Math.round(lerp(130, 185, t)), g: Math.round(lerp(165, 210, t)), b: 255 };
+      spriteIndex = 0;
     } else if (spectralRoll < 0.82) {
       // A/F/G-class: white to warm white (majority)
       const warmth = Math.pow(Math.random(), 3.2);
       const cool = Math.pow(Math.random(), 6);
       const warmShift = blendColor({ r: 194, g: 214, b: 255 }, { r: 255, g: 244, b: 214 }, warmth);
       color = blendColor(warmShift, { r: 232, g: 239, b: 255 }, cool);
+      spriteIndex = warmth > 0.55 ? 2 : 1;
     } else if (spectralRoll < 0.93) {
       // K-class: orange
       const t = Math.random();
       color = { r: 255, g: Math.round(lerp(185, 225, t)), b: Math.round(lerp(100, 160, t)) };
+      spriteIndex = 3;
     } else {
       // M-class: red-orange (common but dim, visually striking)
       const t = Math.random();
       color = { r: 255, g: Math.round(lerp(115, 165, t)), b: Math.round(lerp(55, 100, t)) };
+      spriteIndex = 4;
     }
 
     return {
@@ -64,7 +72,10 @@ export const createStars = (count, config) =>
       cosDec,
       brightness,
       size,
+      depth,
+      rotationRate: lerp(1 - parallax * 0.5, 1 + parallax * 0.5, depth),
       colorCss: `rgb(${color.r} ${color.g} ${color.b})`,
+      spriteIndex,
       twinkleSeed: Math.random() * 10_000,
       twinkleTick: -1,
       twinkleValue: 1,
@@ -72,3 +83,8 @@ export const createStars = (count, config) =>
       trailScale: lerp(0.75, 1.35, Math.random()),
     };
   });
+
+  // Brightest first, so adaptive quality can shed the dimmest stars by simply
+  // drawing a prefix of the array. Order is irrelevant under "lighter" blending.
+  return stars.sort((a, b) => b.brightness - a.brightness);
+};
