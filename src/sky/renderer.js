@@ -1,7 +1,10 @@
 import { TAU } from "./config.js";
 import { createAtmosphereCache, drawAtmosphere } from "./atmosphere.js";
+import { drawAurora } from "./aurora.js";
 import { drawMeteors, updateMeteorSystem } from "./meteors.js";
+import { drawMilkyWay } from "./milkyway.js";
 import { drawNebulae } from "./nebulae.js";
+import { drawSatellites, updateSatelliteSystem } from "./satellites.js";
 import { sampleStarTwinkle } from "./motion.js";
 import { lerp, smoothstep } from "./math.js";
 import { createDirectionTarget, createProjectionTarget, projectStar } from "./projection.js";
@@ -14,6 +17,41 @@ const SPIKE_BRIGHTNESS_THRESHOLD = 0.52;
 
 // Frame-rate-independent trail decay constant: 95% fades after `trailLength` real seconds
 const TRAIL_DECAY_K = Math.log(20);
+
+// Pre-rendered glow sprites, one per spectral class. A single scaled drawImage
+// replaces the one or two arc fills per star and gives a softer bloom falloff.
+const GLOW_SPRITE_SIZE = 64;
+const GLOW_SPRITE_COLORS = [
+  { r: 150, g: 190, b: 255 }, // O/B blue
+  { r: 222, g: 232, b: 255 }, // A/F white
+  { r: 255, g: 240, b: 208 }, // G warm white
+  { r: 255, g: 205, b: 130 }, // K orange
+  { r: 255, g: 145, b: 85 }, // M red
+];
+const glowSpriteCache = [];
+
+const getGlowSprite = (index) => {
+  if (!glowSpriteCache[index]) {
+    const sprite = document.createElement("canvas");
+    sprite.width = GLOW_SPRITE_SIZE;
+    sprite.height = GLOW_SPRITE_SIZE;
+
+    const spriteCtx = sprite.getContext("2d");
+    const { r, g, b } = GLOW_SPRITE_COLORS[index] ?? GLOW_SPRITE_COLORS[1];
+    const half = GLOW_SPRITE_SIZE / 2;
+    const gradient = spriteCtx.createRadialGradient(half, half, 0, half, half, half);
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.55)`);
+    gradient.addColorStop(0.28, `rgba(${r}, ${g}, ${b}, 0.18)`);
+    gradient.addColorStop(0.62, `rgba(${r}, ${g}, ${b}, 0.05)`);
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+    spriteCtx.fillStyle = gradient;
+    spriteCtx.fillRect(0, 0, GLOW_SPRITE_SIZE, GLOW_SPRITE_SIZE);
+    glowSpriteCache[index] = sprite;
+  }
+
+  return glowSpriteCache[index];
+};
 
 export const createRenderScratch = () => ({
   atmosphere: createAtmosphereCache(),
@@ -47,15 +85,18 @@ const drawDiffractionSpikes = (ctx, x, y, brightness, coreRadius, glowScale, col
   }
 };
 
-const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation, alphaScale = 1 }) => {
+const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation, alphaScale = 1, quality = 1 }) => {
   const twinkleEnabled = config.twinkleEnabled !== false;
   const spikesEnabled = config.diffractionSpikesEnabled !== false;
+  // Stars are sorted brightest-first, so shedding quality drops the dimmest ones.
+  const drawCount = quality >= 1 ? stars.length : Math.round(stars.length * quality);
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.lineCap = "round";
 
-  for (const star of stars) {
+  for (let index = 0; index < drawCount; index += 1) {
+    const star = stars[index];
     const current = projectStar({
       star,
       rotation,
@@ -78,24 +119,22 @@ const drawStars = (ctx, { stars, config, derived, viewport, scratch, time, timel
     if (alpha <= MIN_VISIBLE_ALPHA) continue;
 
     const coreRadius = star.size * current.scale;
-    const glowRadius = coreRadius * config.glowScale;
+    const glowRadius =
+      coreRadius * config.glowScale * lerp(1, 1.75, smoothstep(0.62, 1, star.brightness));
     const shouldDrawGlow = alpha > MIN_GLOW_ALPHA && glowRadius > MIN_GLOW_RADIUS;
 
     ctx.strokeStyle = star.colorCss;
     ctx.fillStyle = star.colorCss;
 
     if (shouldDrawGlow) {
-      ctx.globalAlpha = alpha * 0.08;
-      ctx.beginPath();
-      ctx.arc(current.x, current.y, glowRadius, 0, TAU);
-      ctx.fill();
-
-      if (star.brightness > 0.62) {
-        ctx.globalAlpha = alpha * 0.025;
-        ctx.beginPath();
-        ctx.arc(current.x, current.y, glowRadius * 2.8, 0, TAU);
-        ctx.fill();
-      }
+      ctx.globalAlpha = Math.min(1, alpha * 0.55);
+      ctx.drawImage(
+        getGlowSprite(star.spriteIndex ?? 1),
+        current.x - glowRadius,
+        current.y - glowRadius,
+        glowRadius * 2,
+        glowRadius * 2
+      );
     }
 
     if (spikesEnabled && star.brightness > SPIKE_BRIGHTNESS_THRESHOLD && coreRadius > 0.85) {
@@ -127,15 +166,19 @@ export const drawSkyFrame = ({
   ctx,
   stars,
   nebulae,
+  milkyWay,
+  auroraBands,
   config,
   derived,
   meteorSystem,
+  satelliteSystem,
   scratch,
   trailCtx,
   skyDrift,
   viewport,
   elapsed,
   delta,
+  quality = 1,
 }) => {
   ctx.clearRect(0, 0, viewport.width, viewport.height);
 
@@ -143,10 +186,15 @@ export const drawSkyFrame = ({
   const timelapseFactor = config.timelapseEnabled ? config.timelapseIntensity : 0.45;
   const rotation = time * timelapseFactor * config.rotationSpeed + skyDrift;
   const twinkleTick = Math.floor(time * timelapseFactor * 18);
-  const starArgs = { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation };
+  const starArgs = { stars, config, derived, viewport, scratch, time, timelapseFactor, twinkleTick, rotation, quality };
+  const skyArgs = { rotation, derived, viewport, config };
 
   drawAtmosphere(ctx, viewport, config, elapsed, scratch.atmosphere);
   updateMeteorSystem({ system: meteorSystem, viewport, config, delta });
+
+  if (satelliteSystem) {
+    updateSatelliteSystem({ system: satelliteSystem, viewport, config, delta });
+  }
 
   if (trailCtx && config.trailsEnabled) {
     // Fade the opaque buffer toward deep-space black (frame-rate independent exponential decay)
@@ -162,9 +210,12 @@ export const drawSkyFrame = ({
     // regardless of trail length. trailIntensity acts as a linear brightness gain.
     const alphaScale = fadeAlpha * (config.trailIntensity ?? 0.85) * 14;
 
-    // Accumulate nebulae + stars into the buffer
+    // Accumulate milky way + nebulae + stars into the buffer
+    if (milkyWay?.length) {
+      drawMilkyWay({ ctx: trailCtx, milkyWay, ...skyArgs, alphaScale });
+    }
     if (nebulae?.length) {
-      drawNebulae({ ctx: trailCtx, nebulae, rotation, derived, viewport, config, alphaScale });
+      drawNebulae({ ctx: trailCtx, nebulae, ...skyArgs, alphaScale });
     }
     drawStars(trailCtx, { ...starArgs, alphaScale });
 
@@ -173,16 +224,30 @@ export const drawSkyFrame = ({
     ctx.globalAlpha = 1;
     ctx.drawImage(trailCtx.canvas, 0, 0, viewport.width, viewport.height);
     ctx.restore();
+
+    // Aurora must not accumulate in the trail buffer (it would smear),
+    // so it is washed over the composited trails instead.
+    drawAurora({ ctx, bands: auroraBands, viewport, config, elapsed });
   } else {
     // ── Standard mode (no trails) ────────────────────────────────────────
+    drawAurora({ ctx, bands: auroraBands, viewport, config, elapsed });
+
+    if (milkyWay?.length) {
+      drawMilkyWay({ ctx, milkyWay, ...skyArgs });
+    }
     if (nebulae?.length) {
-      drawNebulae({ ctx, nebulae, rotation, derived, viewport, config });
+      drawNebulae({ ctx, nebulae, ...skyArgs });
     }
     drawStars(ctx, starArgs);
   }
 
   ctx.save();
   ctx.globalAlpha = 1;
+
+  if (satelliteSystem) {
+    drawSatellites({ ctx, system: satelliteSystem, viewport });
+  }
+
   drawMeteors({ ctx, system: meteorSystem });
   ctx.restore();
 };

@@ -44,13 +44,16 @@ export const buildCamera = ({ azimuth, altitude, roll }) => {
   return { forward, right, up };
 };
 
-export const createDerivedScene = (config) => ({
+// `view` carries additive look offsets in degrees (camera idle drift) so the
+// stored config camera pose stays untouched.
+export const createDerivedScene = (config, view = {}) => ({
   latSin: Math.sin(config.observerLatitude * DEG),
   latCos: Math.cos(config.observerLatitude * DEG),
   trailAngle: config.rotationSpeed * config.trailExposureSeconds * config.trailTimeWarp,
   camera: buildCamera({
-    azimuth: config.lookAzimuth * DEG,
-    altitude: config.lookAltitude * DEG,
+    azimuth: (config.lookAzimuth + (view.azimuth ?? 0)) * DEG,
+    altitude:
+      Math.min(90, Math.max(-90, config.lookAltitude + (view.altitude ?? 0))) * DEG,
     roll: config.lookRoll * DEG,
   }),
 });
@@ -203,7 +206,7 @@ export const projectStar = ({
   projectDirection({
     direction: equatorialToHorizontal({
       star,
-      hourAngle: star.hourOffset + rotation + offset,
+      hourAngle: star.hourOffset + rotation * (star.rotationRate ?? 1) + offset,
       derived,
       target: directionTarget,
     }),

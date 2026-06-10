@@ -10,8 +10,15 @@ The effect is designed to be understated rather than flashy:
 - dark page background with a soft radial gradient
 - star distribution biased toward natural variation
 - slow sky rotation with long exposure-style motion trails
+- per-star depth with differential rotation for a parallax "3D dust" feel
+- slow noise-driven idle camera drift that shifts the whole projection
+- a procedural milky way glow band that traces the dense star lane
+- animated aurora curtains near the horizon with configurable hue and height
+- slow blinking satellites with occasional iridium-style flares
 - subtle atmospheric projection warp that stretches the sky toward the edges
 - rare meteor streaks for occasional higher-energy moments
+- pre-rendered glow sprites and adaptive quality to keep frame rates stable
+- an optional FPS cap for low-cost background use
 - modest glow and twinkle to keep the field alive without dominating content
 - live controls for tuning the scene directly in the browser
 - camera presets, scene presets, saved settings, and clipboard export for config snippets
@@ -89,6 +96,10 @@ The workflow installs dependencies, runs `npm test -- --run`, builds the site, u
 - [`src/sky/scene-presets.js`](/home/fredrik/Documents/playground/stargazing/src/sky/scene-presets.js) defines named high-impact scene presets.
 - [`src/sky/randomize.js`](/home/fredrik/Documents/playground/stargazing/src/sky/randomize.js) provides deterministic seeded config randomization.
 - [`src/sky/atmosphere.js`](/home/fredrik/Documents/playground/stargazing/src/sky/atmosphere.js) adds atmosphere and gravity-style projection distortion.
+- [`src/sky/aurora.js`](/home/fredrik/Documents/playground/stargazing/src/sky/aurora.js) renders animated aurora curtains near the horizon.
+- [`src/sky/milkyway.js`](/home/fredrik/Documents/playground/stargazing/src/sky/milkyway.js) draws the procedural milky way glow band with pre-rendered sprites.
+- [`src/sky/satellites.js`](/home/fredrik/Documents/playground/stargazing/src/sky/satellites.js) manages slow satellite passes and flare moments.
+- [`src/sky/quality.js`](/home/fredrik/Documents/playground/stargazing/src/sky/quality.js) holds the adaptive quality controller that sheds dim stars under load.
 - [`src/sky/meteors.js`](/home/fredrik/Documents/playground/stargazing/src/sky/meteors.js) manages rare meteor streaks and their rendering.
 - [`src/sky/createSky.js`](/home/fredrik/Documents/playground/stargazing/src/sky/createSky.js) owns canvas lifecycle, resize handling, and animation loop setup.
 - [`src/sky/projection.js`](/home/fredrik/Documents/playground/stargazing/src/sky/projection.js) handles camera setup and star projection math.
@@ -115,6 +126,13 @@ The main configuration lives in [`src/sky/config.js`](/home/fredrik/Documents/pl
 - `twinkleAmount`, `twinkleSpeedMin`, `twinkleSpeedMax`: controls subtle star shimmer.
 - `bandWeight`, `bandAmplitude`, `bandSpread`, `starSpread`: controls how clustered and varied the star distribution feels.
 - `atmosphereEnabled`, `atmosphereStrength`, `gravityEnabled`, `gravityStrength`: controls the stronger atmospheric and lensing effects.
+- `depthParallaxEnabled`, `depthParallax`: spreads per-star rotation rates by depth for the parallax feel.
+- `cameraDriftEnabled`, `cameraDriftAmount`, `cameraDriftSpeed`: controls the slow idle look-around.
+- `milkyWayEnabled`, `milkyWayIntensity`: controls the procedural milky way glow band.
+- `auroraEnabled`, `auroraIntensity`, `auroraSpeed`, `auroraHue`, `auroraBands`, `auroraHeight`: controls the aurora curtains.
+- `satellitesEnabled`, `satelliteRate`, `maxActiveSatellites`: controls the satellite layer.
+- `adaptiveQualityEnabled`, `targetFps`: lets the renderer shed the dimmest stars to hold a frame rate.
+- `maxFps`: caps the redraw rate (0 = uncapped) for cheap background use.
 - `screenCoverageBoost`, `edgeMagnification`, `horizonMagnification`: pushes the illusion of scale toward the screen edges.
 - `meteorsEnabled`, `meteorRate`, `meteorTrailLength`, `meteorGlow`: controls the meteor layer.
 - `horizonFadeStart`, `horizonFadeEnd`, `edgeFadeStart`, `edgeFadeEnd`: adjusts visibility falloff near the horizon and frame edges.
@@ -173,13 +191,16 @@ Setting a feature flag to `false` in `embed-config.json` removes that module ent
 | `"nebulaEnabled": false` | nebula data + draw loop |
 | `"meteorsEnabled": false` | meteor system + draw loop |
 | `"atmosphereEnabled": false` | atmosphere cache + warp math |
+| `"auroraEnabled": false` | aurora bands + curtain rendering |
+| `"milkyWayEnabled": false` | milky way patches + sprites |
+| `"satellitesEnabled": false` | satellite system + draw loop |
 
 **Bundle sizes (gzip):**
 
 | Config | Size |
 |---|---|
-| All features on (default) | ~8 KB |
-| Nebulae + meteors + atmosphere off | ~5.5 KB |
+| All features on (default) | ~10.6 KB |
+| All optional features off | ~6.5 KB |
 
 ### Embedding via JS modules (dev / bundled projects)
 

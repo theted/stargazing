@@ -9,6 +9,26 @@ export const sampleSkyDriftVelocity = ({ elapsed, config }) => {
   return config.backgroundParallax * lerp(0.006, 0.02, blended);
 };
 
+// Slow noise-driven look-around. Returns additive look offsets in degrees so
+// the projection itself shifts — genuine parallax rather than a screen-space pan.
+export const sampleCameraDrift = ({ elapsed, config }) => {
+  const amount = config.cameraDriftAmount ?? 0;
+  const speed = config.cameraDriftSpeed ?? 1;
+  const time = elapsed * 0.02 * speed;
+
+  return {
+    azimuth:
+      (valueNoise1D(time + config.driftSeed * 4.7, config.driftSeed + 31.4) - 0.5) *
+      2 *
+      amount,
+    altitude:
+      (valueNoise1D(time * 0.83 + config.driftSeed * 8.9, config.driftSeed + 57.2) - 0.5) *
+      2 *
+      amount *
+      0.55,
+  };
+};
+
 export const sampleAtmospherePulse = ({ elapsed, config }) => {
   const base = valueNoise1D(elapsed * 0.028 + config.driftSeed * 5.3, config.driftSeed + 4.2);
   const detail = valueNoise1D(elapsed * 0.066 + config.driftSeed * 11.1, config.driftSeed + 23.8);

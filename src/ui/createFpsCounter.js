@@ -10,11 +10,14 @@ export const createFpsCounter = (sky) => {
       return;
     }
 
-    const { fps, starCount, meteorCount, width, height } = sky.getStats();
+    const { fps, starCount, drawnStarCount, quality, meteorCount, satelliteCount, width, height } =
+      sky.getStats();
     counter.textContent = formatFps(fps);
     counter.title =
       `${width} x ${height} · ` +
-      `${starCount.toLocaleString("en-US")} stars · ${meteorCount} meteors`;
+      `${(drawnStarCount ?? starCount).toLocaleString("en-US")} / ${starCount.toLocaleString("en-US")} stars · ` +
+      `quality ${Math.round((quality ?? 1) * 100)}% · ` +
+      `${meteorCount} meteors · ${satelliteCount ?? 0} satellites`;
     window.setTimeout(update, 250);
   };
 
