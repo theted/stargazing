@@ -2,24 +2,21 @@
 
 ## First Pass
 
-- Check for per-star object allocation in projection and rendering.
-- Check for per-frame gradient creation and per-star string construction.
-- Check whether tiny or dim stars still pay for glow and trail work.
+- Frame intervals during start-up: only the first frame (shader compilation) may be long.
+- Steady state at 60 fps on the high tier at 1600×900.
 
 ## Second Pass
 
-- Compare fullscreen against `300 x 300` stage mode.
-- Inspect FPS together with render size, star count, and meteor count.
-- Stress `dprCap`, `density`, `maxStars`, `trailTimeWarp`, and `glowScale`.
+- Star pass: dust and field counts per tier, quad sizes (glow radius only for bright stars).
+- Composite: landscape evaluation is skipped above `landscapeTop`.
+- Aurora: only rendered for places that have one, at half resolution.
 
 ## Third Pass
 
-- Look for opportunities to quantize or cache twinkle, trail, or atmosphere work.
-- Prefer pixel fills for tiny stars before reducing total star count.
-- Revisit meteors only after the star field hot path is under control.
+- Trails: instance count × segments; long exposures on low tiers.
+- Phones: `low`/`medium` tier, pixel-ratio cap, portrait framing.
 
 ## Final Check
 
-- Run `npm test -- --run`.
-- Run `npm run build`.
-- Call out the top 1-3 remaining bottlenecks and the config knobs that affect them most.
+- `npm test` and `npm run build`.
+- Name the top bottleneck and the tier setting that controls it.

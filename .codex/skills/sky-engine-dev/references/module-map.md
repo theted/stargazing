@@ -1,27 +1,30 @@
 # Module Map
 
-Use this reference when a change crosses module boundaries.
-
 ## Runtime Flow
 
-1. `src/main.js` boots the app and mounts optional controls.
-2. `src/sky/createSky.js` owns resize, visibility, and animation lifecycle.
-3. `src/sky/stars.js` creates the star set and its distribution.
-4. `src/sky/projection.js` handles celestial-to-screen transforms.
-5. `src/sky/renderer.js` draws stars, trails, and atmosphere overlays.
-6. `src/sky/config.js` holds the tuning constants.
+1. `src/main.js` reads preferences and URL options, creates the sky and the interface.
+2. `src/sky/createSky.js` creates the renderer, places the camera and runs the loop:
+   time → camera → events → frame state → `renderer.draw(frame)`.
+3. `src/sky/render/renderer.js` draws each frame:
+   - star pass into an sRGB target with screen blending: dust stars (points), trails,
+     meteors, catalogue and field stars, meteor heads and satellites;
+   - aurora at half resolution when the place has one;
+   - composite (`sky.frag`): sky glow, baked Milky Way, stars, aurora, landscape,
+     vignette, dither.
+4. `src/sky/render/milkyWayBaker.js` bakes the galaxy cube map in tiles at start-up and
+   reads its light back asynchronously so `stars.js` can scatter faint stars along it.
 
 ## Editing Guide
 
-- New motion or visibility math belongs in `src/sky/projection.js`.
-- New draw passes belong in `src/sky/renderer.js`.
-- New star distribution behavior belongs in `src/sky/stars.js`.
-- New shared numeric helpers belong in `src/sky/math.js`.
-- New lifecycle or pause/resume behavior belongs in `src/sky/createSky.js`.
-- New user-facing knobs belong in `src/sky/config.js` and, if exposed, the controls UI.
+- Look and motion constants: `src/sky/config.js`.
+- A new site: `src/sky/places.js` (packed by `render/placeUniforms.js`).
+- Galaxy features: `src/sky/milkyway.js` (packed into a float texture for the bake).
+- Celestial maths: `src/sky/astro.js`; camera maths: `src/sky/projection.js`.
+- Star populations: `src/sky/stars.js`; transient events: `src/sky/events.js`.
+- New draw passes: `src/sky/render/` with shaders in `render/shaders/`.
 
 ## Testing Guide
 
-- Prefer tests that validate geometry, basis vectors, and visibility rules.
-- Test behavior with explicit numbers, not screenshots.
-- If randomness matters, test ranges and invariants.
+- Test geometry, frames and invariants with explicit numbers.
+- Seeded randomness (`createRandom`) keeps generation testable.
+- Shaders are checked visually; `?debug=allsky|stars|dust` isolates layers.

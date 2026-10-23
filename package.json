@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Night sky background study built with canvas and vanilla modules",
+  "description": "A slowly turning night sky in WebGL: the real stars, the Milky Way, meteors and the aurora",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

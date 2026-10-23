@@ -1,210 +1,127 @@
 # Stargazing
 
-`stargazing` is a small canvas-based night-sky background study for portfolio-style pages. It renders a transparent fullscreen starfield with slow celestial motion, subtle twinkle, and timelapse-style trails over a dark radial backdrop.
+A night sky whose only job is to be beautiful. The real stars of the Yale Bright Star
+Catalogue turn slowly over a silhouetted horizon, the Milky Way rises with its dust lanes
+and star clouds, meteors streak out of a shower radiant, satellites slide into Earth's
+shadow, and in Lapland an aurora hangs its curtains over the spruce forest.
 
-## What It Is
+It runs in any browser with WebGL 2, with no runtime dependencies.
 
-The effect is designed to be understated rather than flashy:
-
-- fullscreen canvas with transparent rendering
-- dark page background with a soft radial gradient
-- star distribution biased toward natural variation
-- slow sky rotation with long exposure-style motion trails
-- subtle atmospheric projection warp that stretches the sky toward the edges
-- rare meteor streaks for occasional higher-energy moments
-- modest glow and twinkle to keep the field alive without dominating content
-- live controls for tuning the scene directly in the browser
-- camera presets, scene presets, saved settings, and clipboard export for config snippets
-- seeded randomization for reproducible exploration
-- a small FPS overlay for quick performance checks while tuning
-
-## Getting Started
-
-Install dependencies:
+## Looking at it
 
 ```bash
 npm install
-```
-
-Run the development server:
-
-```bash
 npm run dev
 ```
 
-Build for production:
+- **Drag** to look around (it coasts when you let go), **scroll** or **pinch** to zoom.
+  Zooming in reveals fainter stars, as binoculars would.
+- **Double-click** the sky to make a wish: a meteor streaks through that spot.
+- The button in the corner opens a small panel: place, the speed of time, long-exposure
+  trails, and the individual layers.
+- Keys: `Space` pause, `T` cycle exposure, `1` / `2` places, `R` reset view,
+  `M` meteor, `F` full screen, `H` hide everything.
 
-```bash
-npm run build
+The interface fades away while you are just looking. Choices are remembered per browser.
+URL parameters override them, which is handy for sharing a view:
+
+```
+?place=lapland&speed=120&trails=60&az=350&alt=30&fov=90&lst=4.5&intro=0&ui=0
 ```
 
-Build with the GitHub Pages base path logic applied:
+## How it is made
 
-```bash
-GITHUB_ACTIONS=true GITHUB_REPOSITORY="<owner>/<repo>" npm run build
-```
+Everything is drawn in physically motivated linear light and tone mapped with
+`1 − e^−x`. That curve makes it possible to draw each star *already tone mapped*
+into an sRGB target with `ONE, ONE_MINUS_SRC_COLOR` blending: because
+`1 − (1 − a)(1 − b) = 1 − e^−(x + y)`, overlapping light combines exactly as if it had
+been summed first, with no float render targets needed.
 
-Preview the production build:
+- **Stars.** The 9,096 catalogue stars keep their real positions, magnitudes and colours.
+  Colours come from B−V through blackbody chromaticity. Each star is a point-spread
+  function: a pin-sharp core, a skirt and a soft glow, like a lens with a light diffusion
+  filter. Only bright stars bloom, and their cores burn white while their halos keep the
+  colour. Twinkling is gentle overhead and lively near the horizon, where bright stars
+  also flicker in colour.
+- **The Milky Way** is described as data: named star clouds, dark nebulae such as the Coalsack
+  and the Great Rift, emission nebulae, and the Magellanic Clouds, Andromeda and Omega
+  Centauri, all in galactic or equatorial coordinates. A shader adds the procedural band,
+  mottling and dust filaments, and bakes the whole galaxy once into a cube map in a few
+  tiles per frame. Its light is then read back so that ~140,000 field stars and ~360,000
+  faint "dust" stars can be scattered along it. That is why the band reads as a river of
+  stars rather than smoke.
+- **Atmosphere.** Starlight dims and reddens toward the horizon with air mass. Airglow
+  rises in a faint green band with slow gravity-wave ripples, distant towns leave warm
+  light domes, and the background sky deepens toward the zenith.
+- **Places** are pure data in [`src/sky/places.js`](src/sky/places.js): latitude, a horizon
+  composed like a photograph, layered ridges with valley mist, a volcano or a spruce
+  treeline, the shower radiant and whether there is an aurora.
+- **Aurora** curtains are meandering sheets of light hanging from ~100 km. Every view ray
+  is intersected with every sheet, rather than marched through a volume, which gives a
+  green lower edge with a pink fringe, red tops, drifting rays and bright folds where a
+  curtain is seen edge-on.
+- **Long exposure.** Trails are drawn analytically as ribbons along each star's circle around
+  the pole, so they stay crisp while the camera moves. The Milky Way smears with them.
+- **Projection** is a blend between stereographic and rectilinear
+  (`r = scale·tan(αθ)/2α`), so wide skies keep star patterns intact while the horizon
+  only bends gently.
 
-```bash
-npm run preview
-```
+The sky turns 36× faster than reality by default, one sidereal hour every 100 seconds.
+Twinkle, meteors and the aurora stay in real time. With
+`prefers-reduced-motion`, the sky slows to real time and transient effects are disabled.
 
-Run the test suite:
+## Project structure
 
-```bash
-npm test
-```
+| Path | Role |
+|---|---|
+| `src/main.js` | Bootstrap: preferences, URL options, sky, interface |
+| `src/ui/` | Caption, settings panel, keyboard, preferences |
+| `src/sky/createSky.js` | Runtime: WebGL context, input, time, events, per-frame state |
+| `src/sky/config.js` | Tuning surface: defaults, the look, quality tiers |
+| `src/sky/places.js` | Observing sites |
+| `src/sky/astro.js` | Celestial frames, sidereal time, extinction, star colour |
+| `src/sky/projection.js` | Camera projection and composition |
+| `src/sky/stars.js` | Catalogue decoding, field and dust star generation |
+| `src/sky/milkyway.js` | The galaxy's named features |
+| `src/sky/events.js` | Meteors and satellites |
+| `src/sky/camera.js` | Drag, inertia, zoom, glides |
+| `src/sky/render/` | WebGL resources, passes and shaders (`shaders/*.glsl`) |
+| `src/sky/data/bright-stars.js` | Generated catalogue (see below) |
 
-## GitHub Pages
+## Quality and performance
 
-The repo is now prepared for GitHub Pages with:
+`quality: "auto"` picks a tier from the device (`low`, `medium` or `high` in
+`QUALITY_TIERS`). The tier sets the pixel-ratio cap, star counts, cube-map size and trail
+detail. Faint stars are generated a few milliseconds per frame while the intro fades in, so
+start-up never stutters. On an integrated laptop GPU the high tier holds 60 fps at 1600×900
+with ~510,000 stars.
 
-- dynamic Vite `base` handling in [`vite.config.js`](/home/fredrik/Documents/playground/stargazing/vite.config.js)
-- a deploy workflow in [`.github/workflows/deploy.yml`](/home/fredrik/Documents/playground/stargazing/.github/workflows/deploy.yml)
+## Embedding
 
-The Vite base is resolved automatically:
-
-- `https://<user>.github.io/` or a custom domain builds with `/`
-- `https://<user>.github.io/<repo>/` builds with `/<repo>/`
-
-To enable deployment on GitHub:
-
-1. Push the repository to GitHub.
-2. In `Settings -> Pages`, set `Source` to `GitHub Actions`.
-3. Push to `master` or `main`, or run the workflow manually from the `Actions` tab.
-
-The workflow installs dependencies, runs `npm test -- --run`, builds the site, uploads `dist`, and deploys it with the official GitHub Pages actions.
-
-## Project Structure
-
-- [`index.html`](/home/fredrik/Documents/playground/stargazing/index.html) is the Vite entry page and mounts the fullscreen canvas.
-- [`vite.config.js`](/home/fredrik/Documents/playground/stargazing/vite.config.js) configures the deployment base path, including GitHub Pages support.
-- [`src/main.js`](/home/fredrik/Documents/playground/stargazing/src/main.js) boots the sky effect and exposes `window.skyDemo`.
-- [`src/styles.css`](/home/fredrik/Documents/playground/stargazing/src/styles.css) defines the page background, layout, and canvas sizing.
-- [`src/sky/config.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config.js) contains the main tuning constants.
-- [`src/sky/config-source.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config-source.js) formats the config as source code for clipboard export.
-- [`src/sky/config-storage.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config-storage.js) persists the current controls to `localStorage`.
-- [`src/sky/presets.js`](/home/fredrik/Documents/playground/stargazing/src/sky/presets.js) defines the camera presets.
-- [`src/sky/scene-presets.js`](/home/fredrik/Documents/playground/stargazing/src/sky/scene-presets.js) defines named high-impact scene presets.
-- [`src/sky/randomize.js`](/home/fredrik/Documents/playground/stargazing/src/sky/randomize.js) provides deterministic seeded config randomization.
-- [`src/sky/atmosphere.js`](/home/fredrik/Documents/playground/stargazing/src/sky/atmosphere.js) adds atmosphere and gravity-style projection distortion.
-- [`src/sky/meteors.js`](/home/fredrik/Documents/playground/stargazing/src/sky/meteors.js) manages rare meteor streaks and their rendering.
-- [`src/sky/createSky.js`](/home/fredrik/Documents/playground/stargazing/src/sky/createSky.js) owns canvas lifecycle, resize handling, and animation loop setup.
-- [`src/sky/projection.js`](/home/fredrik/Documents/playground/stargazing/src/sky/projection.js) handles camera setup and star projection math.
-- [`src/sky/stars.js`](/home/fredrik/Documents/playground/stargazing/src/sky/stars.js) generates the star particles and color variation.
-- [`src/sky/renderer.js`](/home/fredrik/Documents/playground/stargazing/src/sky/renderer.js) draws trails, glows, and star cores for each frame.
-- [`src/sky/math.js`](/home/fredrik/Documents/playground/stargazing/src/sky/math.js) provides the shared math helpers.
-- [`src/ui/createControls.js`](/home/fredrik/Documents/playground/stargazing/src/ui/createControls.js) mounts the live control panel.
-- [`src/ui/display-state.js`](/home/fredrik/Documents/playground/stargazing/src/ui/display-state.js) persists benchmark-box display mode and size state.
-- [`src/ui/createFpsCounter.js`](/home/fredrik/Documents/playground/stargazing/src/ui/createFpsCounter.js) shows the smoothed frame rate and live star count.
-- [`tests/sky.test.js`](/home/fredrik/Documents/playground/stargazing/tests/sky.test.js) verifies the core geometry and projection behavior.
-
-## Tuning Controls
-
-The main configuration lives in [`src/sky/config.js`](/home/fredrik/Documents/playground/stargazing/src/sky/config.js). The most useful knobs are:
-
-- `density`, `minStars`, `maxStars`: controls star count by viewport size.
-- `observerLatitude`: changes the sky orientation and trail feel.
-- `lookAzimuth`, `lookAltitude`, `lookRoll`: sets the camera angle.
-- `fieldOfView`: changes how wide the sky appears.
-- `rotationSpeed`: controls how quickly the starfield turns.
-- `motionScale`, `timelapseEnabled`, `timelapseIntensity`: controls the speed-up used for the timelapse feel.
-- `trailExposureSeconds`, `trailTimeWarp`: controls trail length and perceived exposure.
-- `baseStarSize`, `maxStarSize`, `starSizeVariation`, `sizeVariationEnabled`, `glowScale`: changes visual weight and softness.
-- `twinkleAmount`, `twinkleSpeedMin`, `twinkleSpeedMax`: controls subtle star shimmer.
-- `bandWeight`, `bandAmplitude`, `bandSpread`, `starSpread`: controls how clustered and varied the star distribution feels.
-- `atmosphereEnabled`, `atmosphereStrength`, `gravityEnabled`, `gravityStrength`: controls the stronger atmospheric and lensing effects.
-- `screenCoverageBoost`, `edgeMagnification`, `horizonMagnification`: pushes the illusion of scale toward the screen edges.
-- `meteorsEnabled`, `meteorRate`, `meteorTrailLength`, `meteorGlow`: controls the meteor layer.
-- `horizonFadeStart`, `horizonFadeEnd`, `edgeFadeStart`, `edgeFadeEnd`: adjusts visibility falloff near the horizon and frame edges.
-- `dprCap`: caps device pixel ratio for performance.
-- `cameraPreset`: selects the initial camera pose on the globe.
-- named scene presets provide curated looks, and the seeded randomizer lets you revisit any generated configuration by reusing the same seed.
-
-At runtime, the app instance is exposed as `window.skyDemo` with:
-
-- `window.skyDemo.regenerate()` to rebuild the stars
-- `window.skyDemo.applyConfig()` to re-sync derived values after changing `window.skyDemo.config`
-- `window.skyDemo.copyConfigToClipboard()` to copy the current config as a source snippet
-- `window.skyDemo.getConfigSource()` to inspect the current config string in code format
-- `window.skyDemo.getStats()` to inspect smoothed FPS, star count, and active meteors
-- `window.skyDemo.dispose()` to stop the animation and remove listeners
-
-The live control panel also saves to `localStorage` automatically, so the next reload starts with the same values. Use the reset button in the panel to clear the stored settings. The panel can be collapsed when you want an unobstructed look at the sky, many slider ranges are intentionally broad enough for stress-testing and extreme tuning passes, and the randomizer now supports explicit seeds so you can keep or share a generated look.
-
-## Embed Build
-
-`npm run build:embed` compiles a self-contained, minified IIFE at `dist/embed/sky.js` — no controls, no UI, no config storage. Drop it into any page with a single `<script>` tag:
+`npm run build:embed` writes a single self-contained file, `dist/embed/sky.js` (~83 KB
+gzipped, ~56 KB of it the star catalogue). It needs no CSS and no UI:
 
 ```html
-<!-- option A: existing canvas -->
-<canvas class="sky"></canvas>
-<script src="sky.js"></script>
-
-<!-- option B: no canvas — the script creates and prepends one -->
+<canvas class="sky"></canvas>   <!-- optional: created if missing -->
 <script src="sky.js"></script>
 ```
 
-The script injects its own minimal canvas CSS and exposes `window.sky` for programmatic control (`window.sky.dispose()`, `window.sky.config`, etc.).
+Options are baked in from `embed-config.json`, using any key of `SKY_DEFAULTS`
+(`place`, `timeScale`, `trails`, `layers`, `quality`, `interactive`, `intro`). The sky is
+exposed as `window.sky`, with `setPlace`, `setTimeScale`, `setTrails`, `setLayer`,
+`resetView`, `triggerMeteor`, `getStats` and `dispose`. The same API is `window.sky` on
+the main page.
 
-### Customising the config
-
-Edit `embed-config.json` before running `build:embed`. Any key you set overrides the default; keys you omit keep their defaults.
-
-To capture your current browser session as the embed config, open DevTools on the dev server and run:
-
-```js
-copy(JSON.stringify(window.skyDemo.config, null, 2))
-```
-
-Paste the result into `embed-config.json`, then run:
+## Scripts
 
 ```bash
-npm run build:embed
+npm test             # Vitest: frames, projection, catalogue, generation, camera, events
+npm run build        # site, GitHub Pages aware (see vite.config.js)
+npm run build:embed  # single-file embed
+node scripts/build-star-catalog.mjs [catalog.gz]   # regenerate the star data
 ```
 
-### Tree-shaking disabled features
+## Credits
 
-Setting a feature flag to `false` in `embed-config.json` removes that module entirely from the output — its data and draw code are never bundled:
-
-| Flag | Module eliminated |
-|---|---|
-| `"nebulaEnabled": false` | nebula data + draw loop |
-| `"meteorsEnabled": false` | meteor system + draw loop |
-| `"atmosphereEnabled": false` | atmosphere cache + warp math |
-
-**Bundle sizes (gzip):**
-
-| Config | Size |
-|---|---|
-| All features on (default) | ~8 KB |
-| Nebulae + meteors + atmosphere off | ~5.5 KB |
-
-### Embedding via JS modules (dev / bundled projects)
-
-If you want the effect inside your own bundler pipeline, import directly:
-
-```js
-import { SKY_CONFIG } from "./src/sky/config.js";
-import { createSky } from "./src/sky/createSky.js";
-
-const sky = createSky(document.querySelector(".sky"), SKY_CONFIG);
-```
-
-If you want the live controls too, mount `src/main.js` or wire `src/ui/createControls.js` next to the canvas.
-
-## Project Skills
-
-The repo includes project-local Codex skills for future work:
-
-- [`.codex/skills/sky-engine-dev/SKILL.md`](/home/fredrik/Documents/playground/stargazing/.codex/skills/sky-engine-dev/SKILL.md) for architecture, math, rendering, and validation changes
-- [`.codex/skills/sky-visual-tuning/SKILL.md`](/home/fredrik/Documents/playground/stargazing/.codex/skills/sky-visual-tuning/SKILL.md) for aesthetic and performance tuning passes
-
-## Visual And Performance Goals
-
-The target is a background effect that feels atmospheric but stays out of the way of the page content. The implementation keeps the rendering pipeline simple: one canvas, one animation loop, batched drawing per star, capped device pixel ratio, and a limited star count based on viewport area.
-
-The default camera is pitched to feel like an interesting sky view rather than a flat top-down starfield, and the trail length is tuned to read as time-lapse motion instead of full streaks. The current defaults are more cinematic and more screen-filling than the original subtle pass, but they still keep the star count and DPR bounded so the effect remains practical as a background layer. The production build is Vite-optimized and minified, while the runtime keeps rendering bounded by capping DPR and star counts.
-
-If you want a more subtle backdrop, reduce `density`, `rotationSpeed`, `motionScale`, `trailExposureSeconds`, `glowScale`, and `screenCoverageBoost` first, or disable meteors entirely.
+Star positions, magnitudes and colours are from the Yale Bright Star Catalogue, 5th
+Revised Edition (Hoffleit & Warren, 1991), retrieved from CDS VizieR (catalogue V/50).
