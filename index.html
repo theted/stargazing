@@ -2,22 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#03050a">
+    <meta name="description" content="A slowly turning night sky: the real stars, the Milky Way and the aurora.">
     <title>Stargazing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,400;1,500&family=Inter:wght@300;400;500&display=swap">
     <link rel="stylesheet" href="./src/styles.css">
   </head>
-  <body>
-    <canvas class="sky" aria-hidden="true"></canvas>
-
-    <main class="content">
-      <p class="eyebrow">Canvas background study</p>
-      <h1>Slow sky. Long trails.</h1>
-      <p class="lede">
-        A fullscreen night-sky background with transparent canvas rendering, subtle celestial
-        motion, and timelapse-style star trails.
-      </p>
-    </main>
-
+  <body data-intro="pending">
+    <canvas class="sky" aria-label="A slowly turning night sky"></canvas>
+    <p class="fallback">This sky needs WebGL&nbsp;2, which this browser does not offer.</p>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

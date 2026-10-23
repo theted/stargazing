@@ -1,214 +1,109 @@
-import { DEG } from "./config.js";
-import { warpSkyProjection } from "./atmosphere.js";
-import { cross, dot, lerp, normalize, rotateAroundAxis, smoothstep } from "./math.js";
+// Camera projection.
+//
+// Wide skies are drawn with a one-parameter family of azimuthal projections:
+//
+//   r(θ) = scale · tan(α·θ) / (2α)
+//
+// where θ is the angle from the view centre. α = 0.5 is stereographic (conformal, the
+// planetarium standard), α = 1 is the ordinary rectilinear lens. In between, the horizon
+// bends only gently while stars near the edge keep their shape.
+//
+// View space: x → right, y → up, z → forward. Screen space is in device pixels with
+// y pointing up (the GL convention), so shaders and JS share the same formulas.
 
-const WORLD_UP = { x: 0, y: 1, z: 0 };
-const WORLD_FORWARD = { x: 0, y: 0, z: 1 };
+import { DEG, clamp, mat3, mat3FromRows } from "./math.js";
 
-const createInvisibleProjection = () => ({
-  visible: false,
-  x: 0,
-  y: 0,
-  scale: 1,
-  fade: 0,
-});
+// `fov` spans the geometric mean of width and height, which keeps the amount of sky
+// on screen consistent between landscape monitors and portrait phones.
+export const createViewport = (width, height, fovDeg, alpha = 0.5) => {
+  const reference = Math.sqrt(width * height);
+  const halfFov = (fovDeg * DEG) / 2;
+  const scale = (alpha * reference) / Math.tan(alpha * halfFov);
+  const cornerRadius = Math.hypot(width, height) / 2;
 
-const hideProjection = (target) => {
-  target.visible = false;
-  target.fade = 0;
-  return target;
-};
-
-export const createDirectionTarget = () => ({ x: 0, y: 0, z: 0 });
-
-export const createProjectionTarget = () => createInvisibleProjection();
-
-export const buildCamera = ({ azimuth, altitude, roll }) => {
-  const forward = normalize({
-    x: Math.cos(altitude) * Math.sin(azimuth),
-    y: Math.sin(altitude),
-    z: Math.cos(altitude) * Math.cos(azimuth),
-  });
-
-  const referenceUp =
-    Math.abs(dot(forward, WORLD_UP)) > 0.999 ? WORLD_FORWARD : WORLD_UP;
-
-  let right = normalize(cross(referenceUp, forward));
-  let up = normalize(cross(forward, right));
-
-  if (roll !== 0) {
-    right = normalize(rotateAroundAxis(right, forward, roll));
-    up = normalize(cross(forward, right));
-  }
-
-  return { forward, right, up };
-};
-
-export const createDerivedScene = (config) => ({
-  latSin: Math.sin(config.observerLatitude * DEG),
-  latCos: Math.cos(config.observerLatitude * DEG),
-  trailAngle: config.rotationSpeed * config.trailExposureSeconds * config.trailTimeWarp,
-  camera: buildCamera({
-    azimuth: config.lookAzimuth * DEG,
-    altitude: config.lookAltitude * DEG,
-    roll: config.lookRoll * DEG,
-  }),
-});
-
-export const createViewport = (width, height, fieldOfView, fisheyeEnabled = false) => {
-  const fovHalfRad = fieldOfView * DEG * 0.5;
-  const R = Math.min(width, height) * 0.5;
-  // For fisheye, anchor the FOV to the screen diagonal so stars fill all four
-  // corners instead of being cropped to an inscribed circle.
-  const diagonalHalf = Math.hypot(width * 0.5, height * 0.5);
   return {
     width,
     height,
-    cx: width * 0.5,
-    cy: height * 0.5,
-    focal: fisheyeEnabled ? diagonalHalf / fovHalfRad : R / Math.tan(fovHalfRad),
-    fovHalfRad,
-    cosHalfFov: Math.cos(fovHalfRad),
-    fisheyeEnabled,
+    cx: width / 2,
+    cy: height / 2,
+    fov: fovDeg,
+    alpha,
+    scale,
+    // Angle from the centre to the farthest screen corner.
+    maxAngle: Math.atan((2 * alpha * cornerRadius) / scale) / alpha,
   };
 };
 
-export const equatorialToHorizontal = ({
-  star,
-  hourAngle,
-  derived,
-  target = createDirectionTarget(),
-}) => {
-  const sinHour = Math.sin(hourAngle);
-  const cosHour = Math.cos(hourAngle);
+export const projectDirection = (v, viewport) => {
+  const sinTheta = Math.hypot(v[0], v[1]);
+  const theta = Math.atan2(sinTheta, v[2]);
 
-  target.x = -star.cosDec * sinHour;
-  target.y = star.sinDec * derived.latSin + star.cosDec * derived.latCos * cosHour;
-  target.z = star.sinDec * derived.latCos - star.cosDec * derived.latSin * cosHour;
+  if (theta * viewport.alpha >= Math.PI / 2 - 1e-3) {
+    return null;
+  }
 
-  return target;
+  if (sinTheta < 1e-9) {
+    return [viewport.cx, viewport.cy];
+  }
+
+  const radius = (viewport.scale * Math.tan(viewport.alpha * theta)) / (2 * viewport.alpha);
+  return [viewport.cx + (v[0] / sinTheta) * radius, viewport.cy + (v[1] / sinTheta) * radius];
 };
 
-export const projectDirection = ({
-  direction,
-  derived,
-  viewport,
-  config,
-  target = createProjectionTarget(),
-}) => {
-  if (direction.y < config.horizonFadeStart) {
-    return hideProjection(target);
+export const unprojectPoint = (x, y, viewport) => {
+  const dx = x - viewport.cx;
+  const dy = y - viewport.cy;
+  const radius = Math.hypot(dx, dy);
+
+  if (radius < 1e-9) {
+    return [0, 0, 1];
   }
 
-  const viewX = dot(direction, derived.camera.right);
-  const viewY = dot(direction, derived.camera.up);
-  const viewZ = dot(direction, derived.camera.forward);
-
-  if (viewport.fisheyeEnabled) {
-    // Equidistant fisheye: r = focal * θ, where θ is angle from forward axis
-    // Stars beyond FOV/2 are outside the circular view
-    if (viewZ < viewport.cosHalfFov - 0.002) {
-      return hideProjection(target);
-    }
-
-    const cosTheta = Math.min(1, viewZ);
-    const theta = Math.acos(cosTheta);
-    const sinTheta = Math.sqrt(Math.max(0, 1 - cosTheta * cosTheta));
-    const r = theta * viewport.focal;
-
-    const sx = sinTheta > 0.0001
-      ? viewport.cx + (viewX / sinTheta) * r
-      : viewport.cx;
-    const sy = sinTheta > 0.0001
-      ? viewport.cy - (viewY / sinTheta) * r
-      : viewport.cy;
-
-    // Rectangular screen bounds (with a small margin)
-    if (sx < -10 || sx > viewport.width + 10 || sy < -10 || sy > viewport.height + 10) {
-      return hideProjection(target);
-    }
-
-    // Fade toward the screen edges (Chebyshev distance from center, normalized)
-    const edgeX = Math.abs(sx - viewport.cx) / (viewport.width * 0.5);
-    const edgeY = Math.abs(sy - viewport.cy) / (viewport.height * 0.5);
-    const edgeDist = Math.max(edgeX, edgeY);
-
-    const horizonFade = smoothstep(config.horizonFadeStart, config.horizonFadeEnd, direction.y);
-    const edgeFade = 1 - smoothstep(0.92, 1.04, edgeDist);
-    const scale = lerp(0.68, 1.22, smoothstep(0, 1, viewZ));
-    const fade = horizonFade * edgeFade;
-
-    if (fade <= 0.01) {
-      return hideProjection(target);
-    }
-
-    target.visible = true;
-    target.x = sx;
-    target.y = sy;
-    target.scale = scale;
-    target.fade = fade;
-    return target;
-  }
-
-  // Perspective projection (original path)
-  if (viewZ <= config.edgeFadeStart) {
-    return hideProjection(target);
-  }
-
-  const x = viewport.cx + (viewX / viewZ) * viewport.focal;
-  const y = viewport.cy - (viewY / viewZ) * viewport.focal;
-  const ndcX = x / viewport.width;
-  const ndcY = y / viewport.height;
-  const inFrame = ndcX >= -0.1 && ndcX <= 1.1 && ndcY >= -0.1 && ndcY <= 1.1;
-
-  if (!inFrame) {
-    return hideProjection(target);
-  }
-
-  const horizonFade = smoothstep(config.horizonFadeStart, config.horizonFadeEnd, direction.y);
-  const radialEdge = Math.hypot(viewX, viewY) / Math.max(viewZ, 0.001);
-  const edgeFade = 1 - smoothstep(config.edgeFadeEnd, 1.18, radialEdge);
-  const scale = lerp(0.68, 1.22, smoothstep(config.edgeFadeStart, 1, viewZ));
-  const fade = horizonFade * edgeFade;
-
-  if (fade <= 0.01) {
-    return hideProjection(target);
-  }
-
-  return warpSkyProjection({
-    projectionX: x,
-    projectionY: y,
-    projectionScale: scale,
-    projectionFade: fade,
-    direction,
-    viewX,
-    viewY,
-    viewZ,
-    viewport,
-    config,
-    target,
-  });
+  const theta = Math.atan((2 * viewport.alpha * radius) / viewport.scale) / viewport.alpha;
+  const sinTheta = Math.sin(theta);
+  return [(dx / radius) * sinTheta, (dy / radius) * sinTheta, Math.cos(theta)];
 };
 
-export const projectStar = ({
-  star,
-  rotation,
-  offset = 0,
-  derived,
-  viewport,
-  config,
-  directionTarget = createDirectionTarget(),
-  target = createProjectionTarget(),
-}) =>
-  projectDirection({
-    direction: equatorialToHorizontal({
-      star,
-      hourAngle: star.hourOffset + rotation + offset,
-      derived,
-      target: directionTarget,
-    }),
-    derived,
-    viewport,
-    config,
-    target,
-  });
+// Camera altitude (degrees) that puts the horizon `fraction` of the way down the screen
+// (0 = top, 1 = bottom) in the middle of the frame, the way a photographer composes:
+// a portrait phone needs a steeper tilt than a wide monitor for the same picture.
+export const altitudeForHorizon = (width, height, fovDeg, alpha, fraction) => {
+  const viewport = createViewport(width, height, fovDeg, alpha);
+  const offset = (fraction - 0.5) * height;
+  return (Math.atan((2 * alpha * offset) / viewport.scale) / alpha) / DEG;
+};
+
+// Rotation from the horizontal frame (east, north, up) into view space for a camera
+// looking toward `azimuth` (from north through east) at `altitude`, with optional roll.
+// The right vector comes straight from the azimuth, so looking at the zenith is stable.
+export const horizontalToViewMatrix = (azimuthDeg, altitudeDeg, rollDeg = 0, out = mat3()) => {
+  const az = azimuthDeg * DEG;
+  const alt = clamp(altitudeDeg, -90, 90) * DEG;
+  const roll = rollDeg * DEG;
+
+  const forward = [Math.sin(az) * Math.cos(alt), Math.cos(az) * Math.cos(alt), Math.sin(alt)];
+  let right = [Math.cos(az), -Math.sin(az), 0];
+  let up = [
+    right[1] * forward[2] - right[2] * forward[1],
+    right[2] * forward[0] - right[0] * forward[2],
+    right[0] * forward[1] - right[1] * forward[0],
+  ];
+
+  if (roll !== 0) {
+    const cosine = Math.cos(roll);
+    const sine = Math.sin(roll);
+    const rolledRight = [
+      right[0] * cosine + up[0] * sine,
+      right[1] * cosine + up[1] * sine,
+      right[2] * cosine + up[2] * sine,
+    ];
+    up = [
+      up[0] * cosine - right[0] * sine,
+      up[1] * cosine - right[1] * sine,
+      up[2] * cosine - right[2] * sine,
+    ];
+    right = rolledRight;
+  }
+
+  return mat3FromRows(right, up, forward, out);
+};

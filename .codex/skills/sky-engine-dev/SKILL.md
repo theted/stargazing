@@ -1,42 +1,40 @@
 ---
 name: sky-engine-dev
-description: Use when changing the stargazing engine, math, rendering, lifecycle, tests, or Vite wiring.
+description: Use when changing the stargazing engine, astronomy, projection, shaders, lifecycle, tests, or Vite wiring.
 ---
 
 # Sky Engine Dev
 
-Use this skill for structural or behavioral changes in the canvas background.
+Use this skill for structural or behavioural changes to the WebGL sky.
 
 ## Core Rules
 
-- Prefer modern ES modules and arrow functions.
-- Keep `src/main.js` as bootstrap only.
-- Keep pure math and projection logic testable and deterministic.
-- Put lifecycle and canvas orchestration in `src/sky/createSky.js`.
-- Put screen-space math in `src/sky/projection.js`.
-- Put drawing only in `src/sky/renderer.js`.
-- Keep star generation in `src/sky/stars.js`.
-- Keep reusable math helpers in `src/sky/math.js`.
+- Modern ES modules and arrow functions; no runtime dependencies.
+- Keep `src/main.js` as bootstrap only and `src/ui/` DOM-only.
+- Pure, deterministic logic lives in `astro.js`, `projection.js`, `stars.js`, `camera.js`
+  and `events.js`, and is unit tested.
+- `createSky.js` owns lifecycle, input, time and per-frame state; `render/` owns GPU
+  resources (created up front) and draw passes.
+- The GLSL projection in `render/shaders/common.glsl` mirrors `projection.js`; change both.
 
 ## Workflow
 
-1. Check the relevant module boundaries first.
-2. Change the smallest module that owns the behavior.
-3. Update or add Vitest coverage for deterministic logic.
-4. Run `npm test` and `npm run build`.
+1. Check the module map in [references/module-map.md](references/module-map.md).
+2. Change the smallest module that owns the behaviour.
+3. Add or update Vitest coverage for deterministic logic.
+4. Run `npm test` and `npm run build` (plus `npm run build:embed` for shared code).
+5. Check shaders visually on the real GPU (see AGENTS.md, "Testing Expectations").
 
 ## Validation Focus
 
-- Camera basis orthogonality.
-- Projection center points and horizon culling.
-- Star generation invariants and sizing ranges.
-- Import/build correctness under Vite.
+- Frame conversions (equatorial, galactic, horizontal) and sidereal time.
+- Projection round trips and composition (`altitudeForHorizon`).
+- Catalogue decoding, generation invariants and determinism.
+- Camera limits and inertia; meteor and satellite lifecycles.
 
 ## Constraints
 
-- Keep the effect lightweight on desktop and mobile.
-- Cap device pixel ratio where needed.
-- Avoid extra allocations in hot loops.
-- Keep the canvas transparent; atmosphere belongs in CSS or a dedicated overlay, not an opaque clear.
-
-See [references/module-map.md](references/module-map.md) when a task spans multiple files.
+- No per-frame allocations in the render path.
+- One-off heavy work is sliced across frames (generators, tiled bakes).
+- Point-like light goes through the tone-mapped screen-blend star pass; diffuse light
+  goes through the composite.
